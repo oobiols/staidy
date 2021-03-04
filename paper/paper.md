@@ -1,5 +1,5 @@
 ---
-title: '`Staidy`: a python package for AI-based prediction of steady-state fields of finite difference applications'
+title: '`Staidy`: a python package for AI-based prediction of steady-state fields for finite difference applications'
 tags:
   - python
   - computational fluid dynamics
