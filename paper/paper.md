@@ -1,112 +1,79 @@
 ---
-title: 'Gala: A Python package for galactic dynamics'
+title: '`Staidy`: a python package for AI-based prediction of steady-state fields of finite difference applications'
 tags:
-  - Hello
-  - astronomy
-  - dynamics
-  - galactic dynamics
-  - milky way
+  - python
+  - computational fluid dynamics
+  - deep learning
+  - turbulent flows
+  - AI for science
 authors:
-  - name: Adrian M. Price-Whelan^[Custom footnotes for e.g. denoting who the corresponding author is can be included like this.]
+  - name: Octavi Obiols-Sales
     orcid: 0000-0003-0872-7098
-    affiliation: "1, 2" # (Multiple affiliations must be quoted)
-  - name: Author Without ORCID
-    affiliation: 2
-  - name: Author with no affiliation
-    affiliation: 3
+    affiliation: "1" 
+  - name: Aparna Chandramowlishwaran
+    orcid: 0000-0003-0872-7098
+    affiliation: "1" 
+  - name: Abhinav Vishnu
+    orcid: 0000-0003-0872-7098
+    affiliation: "2" 
+  - name: Nicholas Malaya
+    orcid: 0000-0003-0872-7098
+    affiliation: "2" 
 affiliations:
- - name: Lyman Spitzer, Jr. Fellow, Princeton University
+ - name: University of California, Irvine
    index: 1
- - name: Institution Name
+ - name: Advanced Micro Devices (AMD)
    index: 2
- - name: Independent Researcher
-   index: 3
-date: 13 August 2017
-bibliography: paper.bib
+date: 03 March 2021
+bibliography: octavi.bib 
 
 # Optional fields if submitting to a AAS journal too, see this blog post:
 # https://blog.joss.theoj.org/2018/12/a-new-collaboration-with-aas-publishing
-aas-doi: 10.3847/xxxxx <- update this with the DOI from AAS once you know it.
+aas-doi: 10.3847/xxxxx 
 aas-journal: Astrophysical Journal <- The name of the AAS journal.
 ---
 
 # Summary
 
-The forces on stars, galaxies, and dark matter under external gravitational
-fields lead to the dynamical evolution of structures in the universe. The orbits
-of these bodies are therefore key to understanding the formation, history, and
-future state of galaxies. The field of "galactic dynamics," which aims to model
-the gravitating components of galaxies to study their structure and evolution,
-is now well-established, commonly taught, and frequently used in astronomy.
-Aside from toy problems and demonstrations, the majority of problems require
-efficient numerical tools, many of which require the same base code (e.g., for
-performing numerical orbit integration).
+Deep learning (DL) algorithms have demonstrated remarkable improvements 
+in a variety of modeling/classification tasks such as computer vision, 
+natural language processing, and high-performance computing [@NIPS2012_4824;@liu2016application;@Baldi:2014kfa].
+At the same time, several researchers have recently applied DL methods for modeling
+physical simulations that are usually resolved by finite difference methods [@autodesk;@pinns;@cfdnet]. 
+
+@cfdnet presented CFDNet, a deep-learning based accelerator for steady-state fluid simulations. 
+CFDNet accelerates traditional CFD solvers by placing a convolutional neural network (CNN) 
+at the core of steady-state simulations: the CNN takes as input an intermediate field and outputs 
+the corresponding steady-state field. Then, this CNN-predicted steady-state field is fed back into the physics solver, 
+which constraints the solution in few iterations. The framework showed promising results 
+with coarse-grid (low-resolution) simulations, but is computational impractical for fine-grid (high-resolution) simulations 
+because of the unsormountable data collection and training time. 
+SURFNet is an extension of CFDNet that targets high-resolution simulations easing the mentioned computational burdens. 
+SURFNet enhances CFDNet by transfer learning the weights
+calibrated with coarse-grid solutions to high-resolution settings. 
+This enables a 15x smaller dataset collection of high-resolution solutions. 
+
 
 # Statement of need
 
-`Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
-enables wrapping low-level languages (e.g., C) for speed without losing
-flexibility or ease-of-use in the user-interface. The API for `Gala` was
-designed to provide a class-based and user-friendly interface to fast (C or
-Cython-optimized) implementations of common operations such as gravitational
-potential and force evaluation, orbit integration, dynamical transformations,
-and chaos indicators for nonlinear dynamics. `Gala` also relies heavily on and
-interfaces well with the implementations of physical units and astronomical
-coordinate systems in the `Astropy` package [@astropy] (`astropy.units` and
-`astropy.coordinates`).
+`Staidy` is a Python package for dataset generation, CNN training, CNN prediction, and transfer learning
+between different grid resolutions of steady-state solutions, targetted to any finite difference application
+usually found in scientific computing. `Staidy` was designed to provide a general recipe for CNN-based acceleration
+of finite difference solvers by harnessing the data generated from these solvers without any domain/practitioner intervention. 
+That is, `staidy` is amenable from computational fluid dynamics to solid mechanics, passing through
+heat transfer problems. `Staidy` contains four critical functionalities. First, dataset generation 
+according to the input-output representation in @cfdnet. Second, CNN setup and training. Third, CNN-based
+prediction of steady-state fields and its quantitative evaluation. And four, transfer learning the weights
+calibrated with coarse-grid solutions for alleviating the CNN training time of fine-grid data. 
 
-`Gala` was designed to be used by both astronomical researchers and by
-students in courses on gravitational dynamics or astronomy. It has already been
-used in a number of scientific publications [@Pearson:2017] and has also been
-used in graduate courses on Galactic dynamics to, e.g., provide interactive
-visualizations of textbook material [@Binney:2008]. The combination of speed,
-design, and support for Astropy functionality in `Gala` will enable exciting
-scientific explorations of forthcoming data releases from the *Gaia* mission
-[@gaia] by students and experts alike.
+`Staidy` was designed for applicability and reproducibility of the results of CFDNet [@cfdnet] and SURFNet.
+It can be used by both (a) domain practitioners who wish to accelerate their steady-state
+applications,  and (b) artificial intelligence engineers who aim at network tuning and/or evaluation
+and enhancement of the network's learning task for physical applications. 
 
-# Mathematics
-
-Single dollars ($) are required for inline mathematics e.g. $f(x) = e^{\pi/x}$
-
-Double dollars make self-standing equations:
-
-$$\Theta(x) = \left\{\begin{array}{l}
-0\textrm{ if } x < 0\cr
-1\textrm{ else}
-\end{array}\right.$$
-
-You can also use plain \LaTeX for equations
-\begin{equation}\label{eq:fourier}
-\hat f(\omega) = \int_{-\infty}^{\infty} f(x) e^{i\omega x} dx
-\end{equation}
-and refer to \autoref{eq:fourier} from text.
-
-# Citations
-
-Citations to entries in paper.bib should be in
-[rMarkdown](http://rmarkdown.rstudio.com/authoring_bibliographies_and_citations.html)
-format.
-
-If you want to cite a software repository URL (e.g. something on GitHub without a preferred
-citation) then you can do it with the example BibTeX entry below for @fidgit.
-
-For a quick reference, the following citation commands can be used:
-- `@author:2001`  ->  "Author et al. (2001)"
-- `[@author:2001]` -> "(Author et al., 2001)"
-- `[@author1:2001; @author2:2001]` -> "(Author1 et al., 2001; Author2 et al., 2002)"
-
-# Figures
-
-Figures can be included like this:
-![Caption for example figure.\label{fig:example}](figure.png)
-and referenced from text using \autoref{fig:example}.
-
-Figure sizes can be customized by adding an optional second parameter:
-![Caption for example figure.](figure.png){ width=20% }
 
 # Acknowledgements
 
-We acknowledge contributions from Brigitta Sipocz, Syrtis Major, and Semyeong
-Oh, and support from Kathryn Johnston during the genesis of this project.
+We acknowledge contributions from NSF/AMD.
 
 # References
