@@ -22,8 +22,8 @@ SURFNet overcomes this burden. The idea is to accelerate fine-grid simulations w
 
 ### Why you might be interested in this repository
 
-1. We provide the recipe to create your own datasets as detailed in the publication [datasets](datasets.md)
-2. We provide an already trained coarse model and the recipe to create your own coarse model [tutorials](train.md)
-3. We provide models at higher resolutions obtained by transfer learning to be used or modified at your convenience, and also the recipe to perform transfer learning on your own [tutorials](transfer.md)
+1. We provide the recipe to create your own [datasets](datasets.md) as detailed in the publication.
+2. We provide an already trained coarse [model](models.md) and the files to [train](train.md) your own coarse model.
+3. We provide high-resolution [models](models.md) obtained by transfer learning to be used or modified at your convenience, and also the recipe to perform [transfer learning](transfer.md) on your own.
 
 
