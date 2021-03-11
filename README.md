@@ -23,9 +23,10 @@ SURFNet overcomes this burden. The idea is to accelerate fine-grid simulations w
 # Why you might be interested in this repository
 ## Dataset generation
 
-We provide the recipe for creating the datasets. All the input-output pairs come from simulation data. We use OpenFOAM as the physics solver to generate the data. Note that the recipe that we provide is amenable to any FV/FE/FD application. The input-output pairs are created as seen
+1. We explain the shape of the datasets and how they are generated in [datasets](datasets.md)
+2. We show how to train the coarse model in [tutorials](train.md)
+3. We show how to transfer the weights from the calibrated coarse model to fine-grid data in [tutorials](transfer.md)
 
-![inputoutput](https://user-images.githubusercontent.com/58092961/110804713-46f0dd00-8235-11eb-9a4d-47740d6218e6.jpg)
 :
 
 
