@@ -31,7 +31,7 @@ If you believe this repository can help the development of your research:
 
 ```
 @inproceedings{obiols2020cfdnet,
-  title={CFDNet: A deep learning-based accelerator for fluid simulations}, \
+  title={CFDNet: A deep learning-based accelerator for fluid simulations}, 
   author={Obiols-Sales, Octavi and Vishnu, Abhinav and Malaya, Nicholas and Chandramowliswharan, Aparna},
   booktitle={Proceedings of the 34th ACM International Conference on Supercomputing},
   pages={1--12},
