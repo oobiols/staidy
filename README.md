@@ -6,8 +6,6 @@ CFDNet is a deep learning-based accelerator for 2D, coarse-grid, steady-state si
 ### CFDNet: accelerating steady-state simulations
 CFDNet was published at the International Conference in Supercomputing (2020), and the paper can be found [here](https://dl.acm.org/doi/pdf/10.1145/3392717.3392772?casa_token=2Vx83VWZAWwAAAAA:BauwuqoOjxXcjrpfsI1MwemUxyTb3rIfdLnf1zkUX66YCtUmdUNYWJjqf0TPYAIPDhDRX0YhwQ_0).
 
-CFDNet is a deep learning-based accelerator for 2D, coarse-grid, steady-state simulations. CFDNet is illustrated here:
-
 ![cfdnet](https://user-images.githubusercontent.com/58092961/110775315-a4743200-8213-11eb-9c9a-32fe2c9b4c42.jpg)
 
 We summarize the idea as follows:
