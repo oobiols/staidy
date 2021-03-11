@@ -20,13 +20,9 @@ SURFNet overcomes this burden. The idea is to accelerate fine-grid simulations w
 
 ![surfnet](https://user-images.githubusercontent.com/58092961/110786602-2fa7f480-8221-11eb-8e25-8ecfa475ccbd.jpg)
 
-# Why you might be interested in this repository
-## Dataset generation
+### Why you might be interested in this repository
 
 1. We explain the shape of the datasets and how they are generated in [datasets](datasets.md)
-2. We show how to train the coarse model in [tutorials](train.md)
-3. We show how to transfer the weights from the calibrated coarse model to fine-grid data in [tutorials](transfer.md)
-
-:
+2. We show how to transfer the weights from the calibrated coarse model to fine-grid data in [tutorials](transfer.md)
 
 
