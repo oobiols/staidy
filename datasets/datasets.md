@@ -1,6 +1,8 @@
-# Dataset creation
+# Dataset overview
 
 The basic unit of the datasets for CFDNet and SURFNet are its input-output pairs. The input to the CNN and the output (target) of the CNN are images of equal size. Each image is constructed as follows:
+
+![inputoutput](https://user-images.githubusercontent.com/58092961/111132371-81f55800-8536-11eb-8c87-61402d8d8813.jpg)
 
 
 This image has size MxNxZ, where:
@@ -9,7 +11,8 @@ This image has size MxNxZ, where:
 
 Once the training dataset is created, we use it to train the CNN as follows:
 
-
-
+[network.pdf](https://github.com/oobiols/staidy/files/6140265/network.pdf)
 
 As stated, the input and the output are images of equal size. The only difference between the input and the output is the value of the primary variables that they contain. In the input, the values are those of any intermediate iteration, whereas the output has the values of the steady-state final solution. 
+
+# Dataset generation
