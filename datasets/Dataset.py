@@ -15,7 +15,7 @@ class Dataset():
 
  In this class, we can:
 
- - Create datasets in .h5 format from simulation data
+ - Create datasets in .h5 format from simulation data in h5_datasets directory
  - Load .h5 files to train/validate/test your model
 
  This class needs simulation data.
@@ -37,7 +37,7 @@ class Dataset():
 
  #defining directory and name where to save the h5 dataset
  def set_info_path(self,
-                   path='./datasets/', 
+                   path='./h5_datasets/', 
                    ds_type="train",
                    ds_name="coarse_grid"):
   
@@ -50,14 +50,14 @@ class Dataset():
   if not os.path.exists(self.path_save):
     os.makedirs(self.path_save)
 
- def load_dataset(self)
+ def load_dataset(self):
 
   h5f = h5py.File(self.path_save+self.ds_name+'.h5',"r")
 
   x = h5f.get('x_train_dataset')
-  x = np.float32(np.array(x))
+  x = np.float32(np.asarray(x))
   y = h5f.get('y_train_dataset')
-  y = np.float32(np.array(y))
+  y = np.float32(np.asarray(y))
 
   return (x,y)
 
