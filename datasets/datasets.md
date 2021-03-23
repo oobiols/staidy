@@ -32,7 +32,10 @@ In each directory, we find sub-directories such as `case_1`, `case_2`, `case_3`,
 
 Run
 ```
-python createDataset.py
+python create_dataset.py -t train -h 32 -w 128 -name coarse_grid
 ```
 
-To generate an example of training, validation, and test dataset. These datasets are created as .h5 files, which will have to be loaded for training/testing.
+To generate a "name".h5 file, saved in ./datasets/, which is a dataset that contains input X and output Y, in this case for training, where each image is of size [h,w,4]
+
+
+
