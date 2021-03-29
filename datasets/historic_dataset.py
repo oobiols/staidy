@@ -3,6 +3,7 @@ import h5py
 import glob
 import numpy as np
 
+import get
 from settings import natural_keys
 
 class Dataset():
@@ -22,7 +23,6 @@ class Dataset():
 
  def __init__ (self,
               domain_size= [32,128,4],
-              grid = "ellipse",
               is_turb=1):
 
   #Each image in the dataset is of size 'size'
@@ -33,7 +33,6 @@ class Dataset():
   self.directory = './h5_datasets/'
   self.dataset_name = 'coarse_grid'
   self.dataset_type = 'train'
-  self.grid = grid
   self.shape = (None, self.height, self.width, self.channels)
   self.path= self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'
   
@@ -69,31 +68,9 @@ class Dataset():
   return (x,y)
 
 
- def join_datasets(self, path_1,path_2):
-
-  h5f = h5py.File(path_1,"r")
-
-  x , y = h5f.get('x'), h5f.get('y')
-  x_1 , y_1 = np.float16(np.asarray(x)) , np.float16(np.asarray(y))
- 
-  h5f.close()
-
-  h5f = h5py.File(path_2,"r")
-
-  x , y = h5f.get('x'), h5f.get('y')
-  x , y = np.float16(np.asarray(x)) , np.float16(np.asarray(y))
-
-  h5f.close()
-
-  x = np.append(x_1,x,axis=0)
-  y = np.append(y_1,y,axis=0)
-
-  h5f = h5py.File(save_path+'joined_dataset.h5',"w")
-  h5f.create_dataset('x', data = x,compression="lzf",chunks=True, maxshape = self.shape)
-  h5f.create_dataset('y', data = y,compression="lzf", chunks=True, maxshape = self.shape)
-  h5f.close() 
-
  def create_dataset(self,
+                    benchmark="ellipse",
+                    grid="ellipse",
                     first_case=1,
                     last_case=2):
  
@@ -114,7 +91,7 @@ class Dataset():
     train_x_addrs, train_y_addr = self.__read_addrs(self.dataset_type, case)
 
     #Reads the primary variable values at each iteration of the OpenFOAM data and t 
-    train_x, train_y = self.__case_data(train_x_addrs, train_y_addr)
+    train_x, train_y = self.__case_data(train_x_addrs, train_y_addr, grid, turb)
   
     print("x size ",train_x.shape)
     print("y size ",train_y.shape)
@@ -168,7 +145,9 @@ class Dataset():
   return x_addrs, y_addr
 
  def __case_data(x_addrs, 
-                 y_addr):
+                 y_addr, 
+                 grid, 
+                 turb):
 
   x_train = []
   y_train = []
@@ -182,11 +161,13 @@ class Dataset():
 
     x_addr = x_addrs[i]
 
-    data_cell  = self.__single_sample(x_addr)
+    pos = "input"
+    data_cell  = self.__single_sample(grid, x_addr, pos)
     
     x_train.append(data_cell)
  
-    data_cell = self.__single_sample(y_addr)
+    pos = "output"
+    data_cell = self.__single_sample(grid,y_addr,pos)
 
     y_train.append(data_cell)
 
@@ -194,117 +175,55 @@ class Dataset():
   return x_train, y_train
 
 
- def __single_sample(self,
-                     addr):
+ def __single_sample(grid,
+                     addr,
+                     pos):
   
 
 
-  Ux, Uy, p, nuTilda = self.__get_domain(self,
-                                         addr)
+  height = self.height
 
-  Ux = self.__map_domain(Ux)
-  Uy = self.__map_domain(Uy)
-  p  = self.__map_domain(p)
+  Ux, Uy, p, nuTilda = self.__get_domain(addr, self.isturb)
 
-  Ux = Ux.reshape([Ux.shape[0], Ux.shape[1], 1])
-  Uy = Uy.reshape([Uy.shape[0], Uy.shape[1], 1])
-  p =  p.reshape( [p.shape[0],  p.shape[1],  1])
+#  Ux_bottom,   Uy_bottom,   p_bottom, nuTilda_bottom     = boundaryData(bottom_addr, turb)
+#  Ux_top,      Uy_top,      p_top, nuTilda_top           = boundaryData(top_addr, turb)
 
-  if (self.grid == "channel_flow"):
+ # Ux_bottom,   Uy_bottom,   p_bottom, nuTilda_bottom     = boundaryData(interior_addr, turb)
+ # Ux_top,      Uy_top,      p_top, nuTilda_top           = boundaryData(interior_addr, turb)
 
-    height = self.height
-    Ux_avg = Ux[int(height/2),0,0]
-    Uy_avg = Uy[int(height/2),0,0]
-    uavg = Ux_avg
-    nuTildaAvg = 1e-4
+  Ux = self.__mapping_domain(Ux, grid)
+  Uy = self.__mapping_domain(Uy, grid)
+  p  = self.__mapping_domain(p,  grid)
 
-  elif (self.grid == "ellipse"):
+  Ux = Ux_interior
+  Uy = Uy_interior
+  p  = p_interior
 
-    uavg = 0.6
-    nuTildaAvg = 1e-3
+#  if pos == "input":
 
-  Ux /= uavg
-  Uy /= uavg
-  p /= uavg*uavg
+#   boundary="bottom"
+#   Ux_bottom = mapping.boundary(Ux_bottom, dim, grid, Ux_interior, boundary)
+#   Uy_bottom = mapping.boundary(Uy_bottom, dim, grid, Uy_interior, boundary)
+#   p_bottom  = mapping.boundary(p_bottom,  dim, grid, p_interior, boundary)
 
-  data    = np.concatenate( (Ux, Uy) , axis=2)  
-  data    = np.concatenate( (data, p), axis=2)
+#   boundary="top"
+#   Ux_top = mapping.boundary(Ux_top, dim, grid, Ux_interior, boundary)
+#   Uy_top = mapping.boundary(Uy_top, dim, grid, Uy_interior, boundary)
+#   p_top  = mapping.boundary(p_top,  dim, grid, p_interior, boundary)
 
-  if (self.is_turb):
-   nuTilda = self.__map_domain(nuTilda)
-   nuTilda = nuTilda.reshape([nuTilda.shape[0], nuTilda.shape[1], 1])
-   nuTilda /= nuTildaAvg
-   data   = np.concatenate( ( data, nuTilda), axis=2) 
+  if (turb):
 
-  
-  return data
+   nuTilda_interior = mapping.interior(nuTilda_interior, dim, grid)
+   nuTilda = nuTilda_interior
 
- def __get_domain(self,addr):
-
-   U = np.float16(Ofpp.parse_internal_field(addr+"/U"))
-   p = np.float16(Ofpp.parse_internal_field(addr+"/p"))
-
-   if (self.is_turb):
-    nuTilda     = np.float32(Ofpp.parse_internal_field(addr+"/nuTilda"))
-   else:
-    nuTilda = 0
-
-   Ux          = U[:,0]
-   Uy          = U[:,2]
-
-   return Ux, Uy, p, nuTilda
-
-
- def __map_domain(self, arr):
-
-
-  if self.grid=="ellipse":
-     
-    height = self.height
-    width  = self.width
-
-    w = int(width/4)
-
-    arr = arr.reshape( [height, width] )
-
-    b_1 = np.empty([0, w], float)
-    b_2 = np.empty([0, w], float)
-    b_3 = np.empty([0, w], float)
-    b_4 = np.empty([0, w], float)
-
-    for i in range(0,int(height/4)):
-     line = arr[i,:]
-     line = line.reshape([4,w])
-     b_1  = np.append(b_1, line, axis=0)
-
-    for i in range(int(height/4),2*int(height/4)):
-     line = arr[i,:]
-     line = line.reshape([4,w])
-     b_2  = np.append(b_2, line, axis=0)
- 
-    for i in range(2*int(height/4),3*int(height/4)):
-     line = arr[i,:]
-     line = line.reshape([4,w])
-     b_3  = np.append(b_3, line, axis=0)
-
-    for i in range(3*int(height/4), 4*int(height/4)):
-     line = arr[i,:]
-     line = line.reshape([4,w])
-     b_4  = np.append(b_4, line, axis=0)
-
-
-    b_3 = np.flip(b_3, axis=1)
-    b_4 = np.flip(b_4, axis=1)
- 
-    ret = np.append(b_3,b_4, axis=1)
-    ret = np.append(ret,b_2, axis=1)
-    ret = np.append(ret,b_1, axis=1)
-
-  elif (grid == "1b_rect_grid"):
-
-    height = int(dim[0])
-    width  = int(dim[1])
-
-    ret = arr.reshape( [height, width] )
-
-  return ret
+#   if pos == "input":
+#    boundary="bottom"
+# #   nuTilda_bottom = mapping.boundary(nuTilda_bottom, dim, grid,nuTilda_interior,boundary)
+#    boundary="top"
+#  #  nuTilda_top = mapping.boundary(nuTilda_top, dim, grid, nuTilda_interior,boundary)
+#
+#  if pos == "input":
+#
+# #  Ux = np.append(Ux_bottom, Ux_interior, axis = 0)
+# #  Uy = np.append(Uy_bottom, Uy_interior, axis = 0)
+# #  p  = np.append(p_bottom, p_interior,   axis = 0) 
