@@ -3,6 +3,13 @@ By: Octavi Obiols-Sales, Abhinav Vishnu, Nicholas Malaya, and [Aparna Chandramow
 
 CFDNet is a deep learning-based accelerator for 2D, coarse-grid, steady-state simulations. SURFNet is an extension of CFDNet, for super-resolution of turbulent flows with transfer learning. SURFNet accelerates fine-grid problems while keeping most data collection at coarse grids.
 
+### Why you might be interested in this repository
+In this README file, you will find, first, an overview on CFDNet and SURFNet. And below, you will find different commands that will allow you to:
+1. Generate a .h5 training and validation dataset file from OpenFOAM simulation data. An outline on the shape of the images in the dataset and the overall dataset structure can be found in the [paper](https://dl.acm.org/doi/pdf/10.1145/3392717.3392772?casa_token=2Vx83VWZAWwAAAAA:BauwuqoOjxXcjrpfsI1MwemUxyTb3rIfdLnf1zkUX66YCtUmdUNYWJjqf0TPYAIPDhDRX0YhwQ_0), but is also detailed [here](./datasets/datasets.md). 
+2. Train the CNN with the dataset that we just generated, and create a _coarse model_.
+3. Transfer learn the _coarse model_ we to high-resolution inputs.
+4. Use the already trained models and reproduce the results in the paper. For such, you will OpenFOAM v8 installed. See more [here](./openfoam/).
+
 ### CFDNet: accelerating steady-state simulations
 CFDNet was published at the International Conference in Supercomputing (2020), and the paper can be found [here](https://dl.acm.org/doi/pdf/10.1145/3392717.3392772?casa_token=2Vx83VWZAWwAAAAA:BauwuqoOjxXcjrpfsI1MwemUxyTb3rIfdLnf1zkUX66YCtUmdUNYWJjqf0TPYAIPDhDRX0YhwQ_0).
 
@@ -20,12 +27,6 @@ SURFNet overcomes this burden. The idea is to accelerate fine-grid simulations w
 
 ![surfnet](https://user-images.githubusercontent.com/58092961/110786602-2fa7f480-8221-11eb-8e25-8ecfa475ccbd.jpg)
 
-### Why you might be interested in this repository
-In this repository, you'll find:
-1. A command line to generate a .h5 training dataset file from OpenFOAM simulation data . The structure of the dataset can be found in the [paper](https://dl.acm.org/doi/pdf/10.1145/3392717.3392772?casa_token=2Vx83VWZAWwAAAAA:BauwuqoOjxXcjrpfsI1MwemUxyTb3rIfdLnf1zkUX66YCtUmdUNYWJjqf0TPYAIPDhDRX0YhwQ_0), but is explained again in this repository. 
-2. A command line to train the CNN 
-3. We provide a command line that trains a CNN with the architecture detailed in 
-4. We provide high-resolution [models](models.md) obtained by transfer learning to be used or modified at your convenience, and also the recipe to perform [transfer learning](transfer.md) on your own.
 
 ## Citing this work
 If you believe this repository can help the development of your research:
@@ -40,4 +41,16 @@ If you believe this repository can help the development of your research:
 }
 ```
 
+
+## 1. Create a training and validation dataset from OpenFOAM simulation data
+
+The sample data for the dataset generation is in directories `train_data`, `validation_data`, `test_data`.
+In each directory, we find sub-directories such as `case_1`, `case_2`, `case_3`, etc. Each `case_x` has intermediate iterations and the final steady-state solution of *one* flow configuration. Different cases have different flow configurations (same geometry at different angles of attack, a different geometry, etc.)
+
+Run
+```
+python create_dataset.py --type train --turb 1 --name coarse_grid --height 32 --width 128 --grid ellipse
+```
+
+To generate a "name".h5 file, saved in ./h5_datasets/, which is a dataset that contains input X and output Y, in this case for training, where each image is of size [h,w,4]
 

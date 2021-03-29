@@ -19,7 +19,7 @@ As stated, the input and the output are images of equal size. The only differenc
 
 We provide the recipe and a tutorial with data to generate an example of training, validation, and test dataset.
 
-The recipe (createDataset.py) creates the input (X) and the output (Y) of one dataset.
+The recipe (create_dataset.py) creates the input (X) and the output (Y) of one dataset.
 
 X: of size (S,M,N,Z), where S is the number of samples, that is, the number of intermediate iterations from different flow configurations that use the same MxN domain size and the same primary variables Z.
 
@@ -27,15 +27,6 @@ Y: of size (S,M,N,Z), where S is the number of samples, but in this case, the st
 
 ## Tutorial
 
-The sample data for the dataset generation is in directories `train_data`, `val_data`, `test_data`.
-In each directory, we find sub-directories such as `case_1`, `case_2`, `case_3`, etc. Each `case_x` has intermediate iterations and the final steady-state solution of *one* flow configuration. Different cases have different flow configurations (same geometry at different angles of attack, a different geometry, etc.)
-
-Run
-```
-python create_dataset.py -t train -h 32 -w 128 -name coarse_grid
-```
-
-To generate a "name".h5 file, saved in ./datasets/, which is a dataset that contains input X and output Y, in this case for training, where each image is of size [h,w,4]
 
 
 
