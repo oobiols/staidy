@@ -7,8 +7,8 @@ CFDNet is a deep learning-based accelerator for 2D, coarse-grid, steady-state si
 In this README file, you will find, first, an overview on CFDNet and SURFNet. And below, you will find different commands that will allow you to:
 1. Generate a .h5 training and validation dataset file from OpenFOAM simulation data. An outline on the shape of the images in the dataset and the overall dataset structure can be found in the [paper](https://dl.acm.org/doi/pdf/10.1145/3392717.3392772?casa_token=2Vx83VWZAWwAAAAA:BauwuqoOjxXcjrpfsI1MwemUxyTb3rIfdLnf1zkUX66YCtUmdUNYWJjqf0TPYAIPDhDRX0YhwQ_0), but is also detailed [here](./datasets/datasets.md). 
 2. Train the CNN with the dataset that we just generated, and create a _coarse model_.
-3. Transfer learn the _coarse model_ we to high-resolution inputs.
-4. Use the already trained models and reproduce the results in the paper. For such, you will OpenFOAM v8 installed. See more [here](./openfoam/).
+3. Transfer learn the _coarse model_ to high-resolution inputs.
+4. Use the already trained models and reproduce the results in the paper. For such, you will need OpenFOAM v8 installed. See more [here](./openfoam/).
 
 ### CFDNet: accelerating steady-state simulations
 CFDNet was published at the International Conference in Supercomputing (2020), and the paper can be found [here](https://dl.acm.org/doi/pdf/10.1145/3392717.3392772?casa_token=2Vx83VWZAWwAAAAA:BauwuqoOjxXcjrpfsI1MwemUxyTb3rIfdLnf1zkUX66YCtUmdUNYWJjqf0TPYAIPDhDRX0YhwQ_0).
