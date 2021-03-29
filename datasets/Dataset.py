@@ -1,6 +1,3 @@
-import sys
-sys.path.insert(0, './func')
-
 import os
 import h5py
 import glob
@@ -30,33 +27,39 @@ class Dataset():
   self.height = size[0]
   self.width = size[1]
   self.channels = size[2]
-
-
+  self.directory = './h5_datasets/'
+  self.dataset_name = 'coarse_grid'
+  self.dataset_type = 'train'
   self.shape = (None, self.height, self.width, self.channels)
-
-
- #defining directory and name where to save the h5 dataset
- def set_info_path(self,
-                   path='./h5_datasets/', 
-                   ds_type="train",
-                   ds_name="coarse_grid"):
+  self.path= self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'
   
+ #defining directory and name where to save the h5 dataset
 
-  self.ds_name = ds_name
-  self.ds_type = ds_type
-  self.data_source = self.ds_type+"_data"
-  self.path_save = path+ds_type+'/'+str(self.height)+'x'+str(self.width)+'/'
+ def set_directory(self,
+                   path='./h5_datasets/'):
+  self.directory = path
+  return 0
 
-  if not os.path.exists(self.path_save):
-    os.makedirs(self.path_save)
+ def set_name(self,
+		dataset_name='coarse_grid'):
+  
+  self.dataset_name = dataset_name
+  return 0
+
+ def set_type(self,
+		dataset_type='train'):
+  
+  self.dataset_type = dataset_type
+  return 0
 
  def load_dataset(self):
 
-  h5f = h5py.File(self.path_save+self.ds_name+'.h5',"r")
+  self.file_path = self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'+self.dataset_name+'.h5'
+  h5f = h5py.File(self.file_path,"r")
 
-  x = h5f.get('x_train_dataset')
+  x = h5f.get('x')
   x = np.float32(np.asarray(x))
-  y = h5f.get('y_train_dataset')
+  y = h5f.get('y')
   y = np.float32(np.asarray(y))
 
   return (x,y)
@@ -68,13 +71,15 @@ class Dataset():
                     first_case=1,
                     last_case=2):
  
+  self.directory_path =  self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'
+  if not os.path.exists(self.directory_path):
+    os.makedirs(self.directory_path)
   
   case_number = first_case
   case_end    = last_case + 1
-  count = 0
-  visc  = 1e-4
-  turb  = 1
+  turb  = isturb
 
+  count = 0
   while (case_number !=case_end) :
 
     case = "case_"+str(case_number)
@@ -82,9 +87,8 @@ class Dataset():
     dim = np.array([self.height,self.width,0.0, float(visc)])
 
     #Reads the path addresses where the OpenFOAM data is stored
-    train_x_addrs, train_y_addr = self.read_addrs(self.data_source, benchmark, case, grid)
+    train_x_addrs, train_y_addr = self.read_addrs(self.dataset_type, benchmark, case, grid)
 
-    coordinates =0
     train_x = [] 
     train_y = []
     #Reads the primary variable values at each iteration of the OpenFOAM data and t 
@@ -117,7 +121,7 @@ class Dataset():
     case_number=case_number+1
     count=count+1  
 
- def read_addrs(self,
+ def __read_addrs(self,
                 data, 
                 benchmark, 
                 case, 
@@ -126,7 +130,7 @@ class Dataset():
   x_addrs = []
   y_addr = []
  
-  train_x_path   = "./" + data + "/" + case + "/input/*"
+  train_x_path   = "./" + data+"_data" + "/" + case + "/input/*"
   train_x_addrs  = sorted(glob.glob(train_x_path))
   train_x_addrs  = list(train_x_addrs)
   train_x_addrs.sort(key=natural_keys)
@@ -142,3 +146,39 @@ class Dataset():
   y_addr  = np.asarray(y_addr)
  
   return x_addrs, y_addr
+
+ def __case_data       (x_addrs, y_addr, coordinates, dim, grid, turb, x_train, y_train):
+
+  
+  x_addrs = x_addrs[0]
+  n = len(x_addrs)
+
+  y_interior_addr = y_addr[0]
+  y_interior_addr = y_interior_addr[0]
+  y_top_addr = y_interior_addr
+  y_bottom_addr = y_interior_addr
+
+  for i in range(0,n):
+
+    x_interior_addr = x_addrs[i]
+    x_bottom_addr   = []
+    x_top_addr      = []
+
+    pos = "input"
+    data_cell  = single_sample(grid,     x_interior_addr, 
+                              x_bottom_addr, x_top_addr,
+			      dim, turb, pos)
+    
+    x_train.append(data_cell)
+
+    pos = "output"
+    data_cell = single_sample(grid,     y_interior_addr,  
+		              y_bottom_addr, y_top_addr,
+			      dim, turb, pos)
+
+
+    y_train.append(data_cell)
+
+  
+  return
+

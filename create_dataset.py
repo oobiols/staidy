@@ -1,4 +1,9 @@
+import sys
+sys.path.insert(0, './datasets')
 from Dataset import Dataset
+
+
+
 
 size=[32,128,4]
 train_dataset = Dataset(size)
