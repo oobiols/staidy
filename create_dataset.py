@@ -1,15 +1,33 @@
 import sys
 sys.path.insert(0, './datasets')
+
+import argparse
+
 from Dataset import Dataset
 
+parser = argparse.ArgumentParser(description='dataset command line')
 
+parser.add_argument('-t','--type', type=str, default="train", help="Options are: 'train', 'validation' or 'test' ")
+parser.add_argument('-n','--name', type=str, default="coarse_grid", help='Desired name of the dataset')
+parser.add_argument('-f','--turb', type=int, default=1,help="0 for laminar flow, 1 for turbulent flow (RANS - include eddy viscosity)")
+parser.add_argument('-he','--height', type=int, default=32,help="Height of the computational domain. If domain is HxW, this is H")
+parser.add_argument('-w','--width',type=int, default="128", help= "Width of the computational domain. If mesh is HxW, this is W")
+parser.add_argument('-g','--grid',type=str, default="ellipse", help= "grid type for flow variable mapping. Current possible values accept either channel_flow or ellipse (external aerodynamcis cases)")
 
+args = parser.parse_args()
 
-size=[32,128,4]
-train_dataset = Dataset(size)
-train_dataset.set_info_path()
-train_dataset.create_dataset(first_case=1,last_case=5)
+if (args.turb == 1):
+ channels = 4
+else:
+ channels = 3
 
-val_dataset = Dataset(size)
-val_dataset.set_info_path(ds_type="validation")
-val_dataset.create_dataset(first_case=1,last_case=1)
+size = [args.height,args.width,channels]
+
+ds = Dataset(size=size, 
+             grid = args.grid,
+             is_turb=args.turb)
+
+ds.set_name(args.name)
+ds.set_type(args.type)
+ds.create_dataset(last_case=5)
+

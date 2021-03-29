@@ -1,6 +1,7 @@
 import os
 import h5py
 import glob
+import openfoamparser as Ofpp
 import numpy as np
 
 from settings import natural_keys
@@ -21,24 +22,20 @@ class Dataset():
 '''
 
  def __init__ (self,
-              domain_size= [32,128,4],
+              size= [32,128,4],
               grid = "ellipse",
               is_turb=1):
 
-  #Each image in the dataset is of size 'size'
-  self.height = size[0]
-  self.width = size[1]
-  self.channels = size[2]
-  self.is_turb = is_turb
-  self.directory = './h5_datasets/'
+  self.height       = size[0]
+  self.width        = size[1]
+  self.channels     = size[2]
+  self.is_turb      = is_turb
+  self.directory    = './h5_datasets/'
   self.dataset_name = 'coarse_grid'
   self.dataset_type = 'train'
-  self.grid = grid
-  self.shape = (None, self.height, self.width, self.channels)
-  self.path= self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'
-  
- #defining directory and name where to save the h5 dataset
-
+  self.grid         = grid
+  self.path         = self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'
+  self.shape        = [None,self.height,self.width,self.channels]
  def set_directory(self,
                    path='./h5_datasets/'):
   self.directory = path
@@ -62,9 +59,9 @@ class Dataset():
   h5f = h5py.File(self.file_path,"r")
 
   x = h5f.get('x')
-  x = np.float32(np.asarray(x))
+  x = np.float16(np.asarray(x))
   y = h5f.get('y')
-  y = np.float32(np.asarray(y))
+  y = np.float16(np.asarray(y))
 
   return (x,y)
 
@@ -98,6 +95,7 @@ class Dataset():
                     last_case=2):
  
   self.directory_path =  self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'
+  self.file_path =  self.directory_path + self.dataset_name + '.h5'
   if not os.path.exists(self.directory_path):
     os.makedirs(self.directory_path)
   
@@ -105,6 +103,7 @@ class Dataset():
   case_end    = last_case + 1
 
   count = 0
+
   while (case_number !=case_end) :
 
     case = "case_"+str(case_number)
@@ -112,7 +111,6 @@ class Dataset():
 
     #Reads the path addresses where the OpenFOAM data is stored
     train_x_addrs, train_y_addr = self.__read_addrs(self.dataset_type, case)
-
     #Reads the primary variable values at each iteration of the OpenFOAM data and t 
     train_x, train_y = self.__case_data(train_x_addrs, train_y_addr)
   
@@ -121,20 +119,20 @@ class Dataset():
 
     if count==0:
 
-     h5f = h5py.File(self.path_save+self.ds_name+'.h5',"w")
-     h5f.create_dataset('x_train_dataset', data = train_x,compression="lzf",chunks=True, maxshape = self.shape)
-     h5f.create_dataset('y_train_dataset', data = train_y,compression="lzf", chunks=True, maxshape = self.shape)
+     h5f = h5py.File(self.file_path,"w")
+     h5f.create_dataset('x', data = train_x,compression="lzf",chunks=True, maxshape = self.shape)
+     h5f.create_dataset('y', data = train_y,compression="lzf", chunks=True, maxshape = self.shape)
      h5f.close() 
 
     else:
 
-     with h5py.File(self.path_save+self.ds_name+'.h5', 'a') as hf:
+     with h5py.File(self.file_path, 'a') as hf:
 
-      hf["x_train_dataset"].resize((hf["x"].shape[0] + train_x.shape[0]), axis = 0)
-      hf["x_train_dataset"][-train_x.shape[0]:] = train_x
+      hf["x"].resize((hf["x"].shape[0] + train_x.shape[0]), axis = 0)
+      hf["x"][-train_x.shape[0]:] = train_x
 
-      hf["y_train_dataset"].resize((hf["y"].shape[0] + train_y.shape[0]), axis = 0)
-      hf["y_train_dataset"][-train_y.shape[0]:] = train_y
+      hf["y"].resize((hf["y"].shape[0] + train_y.shape[0]), axis = 0)
+      hf["y"][-train_y.shape[0]:] = train_y
        
       hf.close()
 
@@ -156,7 +154,7 @@ class Dataset():
   train_x_addrs.sort(key=natural_keys)
   x_addrs.append(train_x_addrs)
  
-  train_y_path   = "./" + data + "/" + case + "/output/*"
+  train_y_path   = "./" + data+"_data" + "/" + case + "/output/*"
   train_y_addr  = sorted(glob.glob(train_y_path))
   train_y_addr  = list(train_y_addr)
   train_y_addr.sort(key=natural_keys)
@@ -167,7 +165,8 @@ class Dataset():
  
   return x_addrs, y_addr
 
- def __case_data(x_addrs, 
+ def __case_data(self,
+                 x_addrs, 
                  y_addr):
 
   x_train = []
@@ -191,16 +190,14 @@ class Dataset():
     y_train.append(data_cell)
 
   
-  return x_train, y_train
+  return np.float16(np.asarray(x_train)), np.float16(np.asarray(y_train))
 
 
  def __single_sample(self,
                      addr):
   
 
-
-  Ux, Uy, p, nuTilda = self.__get_domain(self,
-                                         addr)
+  Ux, Uy, p, nuTilda = self.__get_domain(addr)
 
   Ux = self.__map_domain(Ux)
   Uy = self.__map_domain(Uy)
@@ -236,16 +233,16 @@ class Dataset():
    nuTilda /= nuTildaAvg
    data   = np.concatenate( ( data, nuTilda), axis=2) 
 
-  
-  return data
+  return np.float16(data)
 
- def __get_domain(self,addr):
+ def __get_domain(self,
+                    addr):
 
    U = np.float16(Ofpp.parse_internal_field(addr+"/U"))
    p = np.float16(Ofpp.parse_internal_field(addr+"/p"))
 
    if (self.is_turb):
-    nuTilda     = np.float32(Ofpp.parse_internal_field(addr+"/nuTilda"))
+    nuTilda     = np.float16(Ofpp.parse_internal_field(addr+"/nuTilda"))
    else:
     nuTilda = 0
 
@@ -256,7 +253,6 @@ class Dataset():
 
 
  def __map_domain(self, arr):
-
 
   if self.grid=="ellipse":
      
@@ -292,7 +288,6 @@ class Dataset():
      line = line.reshape([4,w])
      b_4  = np.append(b_4, line, axis=0)
 
-
     b_3 = np.flip(b_3, axis=1)
     b_4 = np.flip(b_4, axis=1)
  
@@ -300,11 +295,8 @@ class Dataset():
     ret = np.append(ret,b_2, axis=1)
     ret = np.append(ret,b_1, axis=1)
 
-  elif (grid == "1b_rect_grid"):
+  elif (self.grid == "channel_flow"):
 
-    height = int(dim[0])
-    width  = int(dim[1])
-
-    ret = arr.reshape( [height, width] )
+    ret = arr.reshape( [self.height, self.width] )
 
   return ret

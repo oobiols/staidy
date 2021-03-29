@@ -1,3 +1,5 @@
 tensorflow
 numpy
 openfoamparser
+h5py
+glob
