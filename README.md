@@ -43,21 +43,20 @@ If you believe this repository can help the development of your research:
 
 # How to use
 
-## 1. Download this repository and install all the requirements:
-
+## 1. Download this repository
 First, download this repository:
 
 ```
 git clone https://github.com/oobiols/staidy.git
 ```
-
+## 2. Install the requirements
 This repository works with Python and calls several libraries that need to be installed:
 
 ```
 pip install -r requirements.txt
 ```
 
-## 2. Create a training and validation dataset from OpenFOAM simulation data
+## 2. Create a training dataset from OpenFOAM simulation data
 
 The sample data for the dataset generation is in directories `train_data`, `validation_data`, `test_data`.
 In each directory, we find sub-directories such as `case_1`, `case_2`, `case_3`, etc. Each `case_x` has intermediate iterations and the final steady-state solution of *one* flow configuration. Different cases have different flow configurations (same geometry at different angles of attack, a different geometry, etc.)
@@ -67,5 +66,7 @@ Run
 python create_dataset.py --type train --turb 1 --name coarse_grid --height 32 --width 128 --grid ellipse
 ```
 
-To generate a "name".h5 file, saved in ./h5_datasets/, which is a dataset that contains input X and output Y, in this case for training, where each image is of size [h,w,4]
+This command will create a directory named `h5_datasets`, where you will find a `.h5` file. To understand what this command is doing, please see [here](./datasets/datasets.md)
+
+
 
