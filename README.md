@@ -56,7 +56,7 @@ This repository works with Python and calls several libraries that need to be in
 pip install -r requirements.txt
 ```
 
-## 2. Create a training dataset from OpenFOAM simulation data
+## 2. Create a training dataset from simulation data
 
 The sample data for the dataset generation is in directories `train_data`, `validation_data`, `test_data`.
 In each directory, we find sub-directories such as `case_1`, `case_2`, `case_3`, etc. Each `case_x` has intermediate iterations and the final steady-state solution of *one* flow configuration. Different cases have different flow configurations (same geometry at different angles of attack, a different geometry, etc.)
