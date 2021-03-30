@@ -1,4 +1,8 @@
 import tensorflow as tf
+from losses import *
+from metrics import *
+import plot
+
 
 class NeuralNetwork:
 
@@ -91,10 +95,36 @@ class NeuralNetwork:
 
   self.arch = layer(self.arch)
 
- def createmodel(self):
+ def create_model(self):
   
   self.model = tf.keras.Model(inputs=self.inputs, outputs=self.arch)
 
+ def compile_model(self):
+  
+  self.model.compile(loss=mse_total,optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),metrics=['mse',mse_ux,mse_nut])
 
+ def fit_model(self,
+                X_train,
+                Y_train,
+                X_val,
+                Y_val,
+                batch_size=64,
+                epochs=50,
+                shuffle=True,
+                callbacks = callbacks):
+  
+  self.history = self.model.fit(
+            [X_train], 
+            [Y_train],
+            batch_size=batch_size,
+            epochs=epochs,
+            verbose=1,
+            validation_data=[X_val,Y_val], 
+            shuffle=True, 
+            callbacks=callbacks)
 
+  return
 
+ def plot_history(self):
+  return
+  

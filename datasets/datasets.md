@@ -15,7 +15,10 @@ Once the training dataset is created, we use it to train the CNN as follows:
 
 As stated, the input and the output are images of equal size. The only difference between the input and the output is the value of the primary variables that they contain. In the input, the values are those of any intermediate iteration, whereas the output has the values of the steady-state final solution. 
 
-## Dataset generation
+## Tutorial for Dataset generation
+
+CFDNet and SURFNet are trained by using the fields generated in a steady-state simulation. For example, for one simulation, we take snapshots of the flow field at every intermediate iteration until the flow converges to steady-state. 
+
 
 We provide the recipe and a tutorial with data to generate an example of training, validation, and test dataset.
 
@@ -27,6 +30,5 @@ Y: of size (S,M,N,Z), where S is the number of samples, but in this case, the st
 
 ## Tutorial
 
-
-
-
+The sample data for the dataset generation is in directories `train_data`, `validation_data`, `test_data`.
+In each directory, we find sub-directories such as `case_1`, `case_2`, `case_3`, etc. Each `case_x` has intermediate iterations and the final steady-state solution of *one* flow configuration. Different cases have different flow configurations (same geometry at different angles of attack, a different geometry, etc.)

@@ -13,7 +13,7 @@ parser.add_argument('-f','--turb', type=int, default=1,help="0 for laminar flow,
 parser.add_argument('-he','--height', type=int, default=32,help="Height of the computational domain. If domain is HxW, this is H")
 parser.add_argument('-w','--width',type=int, default="128", help= "Width of the computational domain. If mesh is HxW, this is W")
 parser.add_argument('-g','--grid',type=str, default="ellipse", help= "grid type for flow variable mapping. Current possible values accept either channel_flow or ellipse (external aerodynamcis cases)")
-
+parser.add_argument('-lc','--lastcase',type=int, default=1, help= "last case number in this dataset")
 args = parser.parse_args()
 
 if (args.turb == 1):
@@ -29,5 +29,5 @@ ds = Dataset(size=size,
 
 ds.set_name(args.name)
 ds.set_type(args.type)
-ds.create_dataset(last_case=5)
+ds.create_dataset(last_case=args.lastcase)
 
