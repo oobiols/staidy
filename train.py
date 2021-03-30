@@ -5,6 +5,8 @@ sys.path.insert(0, './datasets/')
 from Dataset import *
 from models import *
 
+import argparse
+
 import tensorflow as tf
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 
@@ -30,15 +32,16 @@ size = [ height, width, channels]
 
 #load training dataset
 ds_tr = Dataset(size)
-ds.set_directory("./h5_datasets/")
-ds.set_type("train")
-X_train,Y_train = ds.load_dataset()
+ds_tr.set_directory("./h5_datasets/")
+ds_tr.set_type("train")
+X_train,Y_train = ds_tr.load_dataset()
 
 
 #load validation dataset 
 ds_val = Dataset(size)
 ds_val.set_directory('./h5_datasets/')
 ds_val.set_type("validation")
+ds_val.set_name("validation")
 X_val , Y_val = ds_val.load_dataset()
 
 
@@ -55,11 +58,6 @@ name="Adam-1e-3-deep-RLROP"
 checkpoint_filepath = './weights/'+name+'-checkpoint-{epoch:02d}'
  
 
-callbacks=[ReduceLROnPlateau(
-    monitor='val_loss', factor=0.5, patience=10, verbose=1,
-    mode='auto', min_delta=0.01, cooldown=0, min_lr=0, **kwargs
-)]
-
 callbacks=[]
 
 cnn.fit_model(X_train, 
@@ -69,7 +67,7 @@ cnn.fit_model(X_train,
               batch_size=args.batchsize,
               epochs=args.epochs,
               shuffle=True, 
-            callbacks=callbacks)
+             callbacks=callbacks)
 
 
   

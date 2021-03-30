@@ -56,7 +56,7 @@ This repository works with Python and calls several libraries that need to be in
 pip install -r requirements.txt
 ```
 
-## 2. Create a training dataset from simulation data
+## 2. Generate a training dataset from simulation data
 
 
 Run
@@ -64,7 +64,21 @@ Run
 python create_dataset.py --type train --turb 1 --name coarse_grid --height 32 --width 128 --grid ellipse
 ```
 
-This command will create a directory named `h5_datasets`, where you will find a `.h5` file. To understand what this command is doing, please see [here](./datasets/datasets.md)
+This command will create a directory named `h5_datasets`, where you will find a `.h5` file. For a better understanding of what this and the next command is doing, please see [here](./datasets/datasets.md)
+
+## 3. Generate a validation dataset from simulation data
 
 
+Run
+```
+python create_dataset.py --type validation --turb 1 -name validation -he 32 -w 128 -g ellipse -lc 1
+```
 
+
+## 4. Train the CNN with the dataset we just generated
+
+
+Run
+```
+python train.py -he 32 -w 128 -e 10
+```

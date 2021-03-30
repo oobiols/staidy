@@ -101,17 +101,17 @@ class NeuralNetwork:
 
  def compile_model(self):
   
-  self.model.compile(loss=mse_total,optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),metrics=['mse',mse_ux,mse_nut])
+  self.model.compile(loss=mse_total,optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),metrics=['mse',mse_ux,mse_nut])
 
  def fit_model(self,
                 X_train,
                 Y_train,
                 X_val,
                 Y_val,
-                batch_size=64,
-                epochs=50,
+                batch_size=1,
+                epochs=15,
                 shuffle=True,
-                callbacks = callbacks):
+                callbacks=[]):
   
   self.history = self.model.fit(
             [X_train], 
