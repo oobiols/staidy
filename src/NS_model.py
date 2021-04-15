@@ -23,9 +23,6 @@ class NSModelDataOnly(keras.Model):
       self.trainMetrics[key] = keras.metrics.Mean(name='train_'+key)
       self.validMetrics[key] = keras.metrics.Mean(name='valid_'+key)
     self.trainMetrics['rMse'] = keras.metrics.Mean(name='train_rMse')
-    for key in ['uMae', 'vMae', 'pMae','nuMae']:
-      self.trainMetrics[key] = keras.metrics.MeanAbsoluteError(name='train_'+key)
-      self.validMetrics[key] = keras.metrics.MeanAbsoluteError(name='valid_'+key)
     ## add metrics for layers' weights, if save_grad_stat is required
     ## i even for weights, odd for bias
     if self.saveGradStat:
@@ -86,10 +83,6 @@ class NSModelDataOnly(keras.Model):
     self.trainMetrics['pMse'].update_state(pMse)
     self.trainMetrics['nuMse'].update_state(pMse)
     self.trainMetrics['rMse'].update_state(rMse)
-    self.trainMetrics['uMae'].update_state(flowPred[:,0], true[:,0])
-    self.trainMetrics['vMae'].update_state(flowPred[:,1], true[:,1])
-    self.trainMetrics['pMae'].update_state(flowPred[:,2], true[:,2])
-    self.trainMetrics['nuMae'].update_state(flowPred[:,3], true[:,3])
     # track gradients coefficients
     if self.saveGradStat:
       self.record_layer_gradient(uMseGrad, 'u_')
@@ -119,10 +112,6 @@ class NSModelDataOnly(keras.Model):
     self.validMetrics['vMse'].update_state(vMse)
     self.validMetrics['pMse'].update_state(pMse)
     self.validMetrics['nuMse'].update_state(nuMse)
-    self.validMetrics['uMae'].update_state(uvpPred[:,0], uvp[:,0])
-    self.validMetrics['vMae'].update_state(uvpPred[:,1], uvp[:,1])
-    self.validMetrics['pMae'].update_state(uvpPred[:,2], uvp[:,2])
-    self.validMetrics['nuMae'].update_state(uvpPred[:,3], uvp[:,3])
     for key in self.validMetrics:
       self.validStat[key] = self.validMetrics[key].result()
     #
