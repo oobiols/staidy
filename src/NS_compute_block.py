@@ -44,32 +44,30 @@ class DenseLayers(keras.layers.Layer):
 class ConvolutionDeconvolutionLayers(keras.layers.Layer):
 
   def __init__(self, 
-               input_shape=(64,256,4),
+               input_shape=(64,256,6),
                filters=[16,32,128,256],\
                kernel_size=(5,5),
-               act='LeakyReLU',\
+               activation='LeakyReLU',\
                strides=(1,1),
                reg=None,\
                last_linear = False, 
                **kwargs):
 
     super(ConvolutionDeconvolutionLayers, self).__init__(**kwargs)
-    
-    assert len(filters) > 0
+    self.filters = filters
+    assert len(self.filters) > 0
     if reg != None:
       if len(reg) == 1:
         tmp = reg[0]
-        reg = np.zeros(len(filters))
+        reg = np.zeros(len(self.filters))
         reg[:] = tmp
       else:
-        assert len(reg) == len(filters)
+        assert len(reg) == len(self.filters)
     else:
-      reg = np.zeros(len(filters))
+      reg = np.zeros(len(self.filters))
 
     self.layers = []
-    # rest layers
-    for i, f in enumerate(filters):
-    
+    for i, f in enumerate(self.filters):
       if i == 0 :
        self.layers.append(keras.layers.Conv2D(
                                               filters=f,\
@@ -77,7 +75,8 @@ class ConvolutionDeconvolutionLayers(keras.layers.Layer):
                                               padding = "same",\
                                               strides = strides,\
                                               kernel_regularizer=keras.regularizers.l2(reg[i]),
-                                              input_shape=input_shape
+                                              input_shape=input_shape,
+					      data_format = "channels_last"
                                               )
                          )
       else:
@@ -90,10 +89,27 @@ class ConvolutionDeconvolutionLayers(keras.layers.Layer):
                                               )
                          )
 
-      self.layers.append(keras.layers.LeakyReLU(alpha=0.1))
-       
-    filters = np.flip(filters) 
-    for i, f in enumerate(filters):
+
+      if activation=="LeakyReLU":
+       self.layers.append(keras.layers.LeakyReLU(alpha=0.1))
+      elif activation=="tanh": 
+       self.layers.append(keras.layers.Activation(tf.keras.activations.tanh))
+
+    self.filters = np.flip(self.filters) 
+    n = len(self.filters)
+    for i, f in enumerate(self.filters):
+      
+      if i == (n-1):
+        self.layers.append(keras.layers.Conv2DTranspose(
+                                              filters=f,\
+                                              kernel_size = kernel_size,\
+                                              padding = "same",\
+                                              strides = strides,\
+					      activation = 'linear',
+                                              kernel_regularizer=keras.regularizers.l2(reg[i])
+                                              )
+                         )
+      else:
         self.layers.append(keras.layers.Conv2DTranspose(
                                               filters=f,\
                                               kernel_size = kernel_size,\
@@ -102,8 +118,10 @@ class ConvolutionDeconvolutionLayers(keras.layers.Layer):
                                               kernel_regularizer=keras.regularizers.l2(reg[i])
                                               )
                          )
- 
-        self.layers.append(keras.layers.LeakyReLU(alpha=0.1))
+        if activation=="LeakyReLU":
+         self.layers.append(keras.layers.LeakyReLU(alpha=0.1))
+        elif activation=="tanh": 
+         self.layers.append(keras.layers.Activation(tf.keras.activations.tanh))
 
 
   def call(self, inputs):
