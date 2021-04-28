@@ -1,11 +1,12 @@
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-import warnings  
-with warnings.catch_warnings():  
-    warnings.filterwarnings("ignore",category=FutureWarning)
-    import tensorflow as tf
-    from tensorflow import keras
-    from tensorflow.keras.preprocessing.text import Tokenizer
+import re
 
-print('ready')  
+def atoi(text):
+ return int(text) if text.isdigit() else text
+
+def natural_keys(text):
+    '''
+    alist.sort(key=natural_keys) sorts in human order
+    http://nedbatchelder.com/blog/200712/human_sorting.html
+    (See Toothy's implementation in the comments)
+    '''
+    return [ atoi(c) for c in re.split(r'(\d+)', text) ]
