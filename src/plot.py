@@ -11,14 +11,16 @@ def history(history,name, writing=1):
  path="./histories/"
  if not os.path.exists(path):
     os.makedirs(path)
- plt.figure()
+ plt.figure(dpi=800)
  plt.title(title)
  
 
+ losses = ["loss","val_loss","data_loss","val_data_loss","cont_loss","val_cont_loss","mom_x_loss","val_mom_x_loss","mom_z_loss","val_mom_z_loss"]
  for n, values in history.history.items():
 
   n = str(n)
-  if n=="loss" or n=="val_loss" or n=="data_loss" or n=="pde_loss" or n=="val_data_loss" or n=="val_pde_loss":
+
+  if n in losses:
    plt.plot(values,label=n)
 
   if(writing):
@@ -33,12 +35,13 @@ def history(history,name, writing=1):
     f.write(str(value)+"\n")
  
 
- plt.legend() 
- plt.ylim(1e-7,1)
+ plt.legend(prop={'size': 6}) 
+ plt.ylim(1e-8,1)
  plt.xlabel("epoch")
  plt.ylabel("loss")
  plt.yscale("log")
- plt.savefig('./histories/'+title+'.jpg')
+ plt.grid(True)
+ plt.savefig('./histories/'+title+'.png')
  plt.close()
 
  return 0

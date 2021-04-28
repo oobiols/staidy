@@ -244,8 +244,6 @@ class NSModelMLP(NSModelDataOnly):
     print(self.width)
     print('layer regularization')
     print(self.reg)
-    print('coefficients for data loss {} {} {}'.format(\
-          self.alpha[0], self.alpha[1], self.alpha[2]))
     print('--------------------------------')
 
 
@@ -284,8 +282,7 @@ class NSModelPinn(keras.Model):
                filters=[4,32,128,256],\
                kernel_size = (5,5),
                strides = (1,1),
-               alpha = [1.0, 1.0, 1.0,1.0], 
-               beta = [1.0], \
+               beta = [1.0, 1.0, 1.0], \
                global_batch_size=64,
                activation="LeakyReLU",
                reg=None, 
@@ -301,7 +298,6 @@ class NSModelPinn(keras.Model):
 							activation=activation)
       
     # coefficient for data and pde loss
-    self.alpha = alpha
     self.beta  = beta
 
     # ---- dicts for metrics and statistics ---- #
@@ -311,7 +307,7 @@ class NSModelPinn(keras.Model):
     self.trainMetrics = {}
     self.validMetrics = {}
     # add metrics
-    names = ['loss', 'data_loss','pde_loss','uMse', 'vMse', 'pMse','nuMse']
+    names = ['loss', 'data_loss','cont_loss','mom_x_loss','mom_z_loss', 'uMse', 'vMse', 'pMse','nuMse']
     for key in names:
       self.trainMetrics[key] = keras.metrics.Mean(name='train_'+key)
       self.validMetrics[key] = keras.metrics.Mean(name='valid_'+key)
@@ -353,7 +349,8 @@ class NSModelPinn(keras.Model):
 
   def compute_data_pde_losses(self, uvpnu_input,uvpnu_labels,xz):
     # track computation for 2nd derivatives for u, v, p
-
+    
+    
     singlesample=tf.shape(uvpnu_labels)[1]
     mse = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
 
@@ -382,20 +379,20 @@ class NSModelPinn(keras.Model):
     del tape2
 
     # compute data loss
-    uMse    = mse(flowPred[:,:,:,0],uvpnu_labels[:,:,:,0])
+    uMse    = mse(u_pred,uvpnu_labels[:,:,:,0])
     uMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
     uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size)
 
-    vMse    = mse(flowPred[:,:,:,1],uvpnu_labels[:,:,:,1])
+    vMse    = mse(v_pred,uvpnu_labels[:,:,:,1])
     vMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
     vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size)
       
-    pMse    = mse(flowPred[:,:,:,2],uvpnu_labels[:,:,:,2])
+    pMse    = mse(p_pred,uvpnu_labels[:,:,:,2])
     pMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
     pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size)
     
     
-    nuMse    = mse(flowPred[:,:,:,3],uvpnu_labels[:,:,:,3])
+    nuMse    = mse(nu_pred,uvpnu_labels[:,:,:,3])
     nuMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
     nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size)
 
@@ -405,10 +402,21 @@ class NSModelPinn(keras.Model):
     pde0Mse    = mse(pde0,z)
     pde0Mse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
     pde0MseGlobal = tf.nn.compute_average_loss(pde0Mse, global_batch_size=self.global_batch_size)
-    #pde1    = u*u_x + v*u_y + p_x - (u_xx + u_yy)/500.0
-    #pde2    = u*v_x + v*v_y + p_y - (v_xx + v_yy)/500.0
 
-    return uMseGlobal, vMseGlobal, pMseGlobal, nuMseGlobal, pde0MseGlobal
+    #viscosity = tf.constant(0.01,shape=tf.shape(pde0),dtype=tf.float32) 
+    #invRe = tf.constant(1/6000,shape=tf.shape(pde0),dtype=tf.float32) 
+
+    pde1    = u_pred*u_x + v_pred*u_z + p_x - (0.01+ nu_pred)*(1/6000)*(u_xx + u_zz)
+    pde1Mse    = mse(pde1,z)
+    pde1Mse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
+    pde1MseGlobal = tf.nn.compute_average_loss(pde1Mse, global_batch_size=self.global_batch_size)
+
+    pde2    = u_pred*v_x + v_pred*v_z + p_z - (0.01 + nu_pred)*(1/6000)*(v_xx + v_zz)
+    pde2Mse    = mse(pde2,z)
+    pde2Mse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
+    pde2MseGlobal = tf.nn.compute_average_loss(pde2Mse, global_batch_size=self.global_batch_size)
+
+    return uMseGlobal, vMseGlobal, pMseGlobal, nuMseGlobal, pde0MseGlobal, pde1MseGlobal, pde2MseGlobal
 
 
   def train_step(self, data):
@@ -423,13 +431,13 @@ class NSModelPinn(keras.Model):
     with tf.GradientTape(persistent=True) as tape0:
       # compute the data loss for u, v, p and pde losses for
       # continuity (0) and NS (1-2)
-      uMse, vMse, pMse, nuMse, contMse = \
+      uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
         self.compute_data_pde_losses(uvpnu_input,uvpnu_labels,xz)
       # replica's loss, divided by global batch size
       data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
-      pde_loss   = contMse
 
-      loss = data_loss + self.beta[0]*pde_loss
+      loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
+
       loss += tf.add_n(self.losses)
     # update gradients
     if self.saveGradStat:
@@ -449,7 +457,9 @@ class NSModelPinn(keras.Model):
     # track loss and mae
     self.trainMetrics['loss'].update_state(loss)
     self.trainMetrics['data_loss'].update_state(data_loss)
-    self.trainMetrics['pde_loss'].update_state(pde_loss)
+    self.trainMetrics['cont_loss'].update_state(contMse)
+    self.trainMetrics['mom_x_loss'].update_state(momxMse)
+    self.trainMetrics['mom_z_loss'].update_state(momzMse)
     self.trainMetrics['uMse'].update_state(uMse)
     self.trainMetrics['vMse'].update_state(vMse)
     self.trainMetrics['pMse'].update_state(pMse)
@@ -476,18 +486,20 @@ class NSModelPinn(keras.Model):
     xz          = inputs[:,:,:,4:6]
     uvpnu_labels = labels[:,:,:,0:4]
 
-    uMse, vMse, pMse, nuMse, contMse = \
+    uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
         self.compute_data_pde_losses(uvpnu_input,uvpnu_labels,xz)
+      # replica's loss, divided by global batch size
+    data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
 
+    loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
 
-    data_loss  = 0.25*(uMse + vMse + pMse + nuMse)
-    pde_loss   = contMse
-    loss = data_loss+ self.beta[0]*pde_loss
     loss += tf.add_n(self.losses)
     # track loss and mae
     self.validMetrics['loss'].update_state(loss)
     self.validMetrics['data_loss'].update_state(data_loss)
-    self.validMetrics['pde_loss'].update_state(pde_loss)
+    self.validMetrics['cont_loss'].update_state(contMse)
+    self.validMetrics['mom_x_loss'].update_state(momxMse)
+    self.validMetrics['mom_z_loss'].update_state(momzMse)
     self.validMetrics['uMse'].update_state(uMse)
     self.validMetrics['vMse'].update_state(vMse)
     self.validMetrics['pMse'].update_state(pMse)
@@ -521,8 +533,6 @@ class NSModelPinn(keras.Model):
     print(self.width)
     print('layer regularization')
     print(self.reg)
-    print('coefficients for data loss {} {} {}'.format(\
-          self.alpha[0], self.alpha[1], self.alpha[2]))
     print('--------------------------------')
 
 

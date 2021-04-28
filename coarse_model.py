@@ -26,7 +26,11 @@ parser.add_argument('-w', '--width', type=int, default=256,\
                     help='width of the single image')
 parser.add_argument('-lr', '--learningrate', type=float, default=1e-4,\
                     help='learning rate')
-parser.add_argument('-reg', '--regularization', type=float, default=1.0,\
+parser.add_argument('-lcont', '--lambdacont', type=float, default=1.0,\
+                    help='constant for the pde loss')
+parser.add_argument('-lmomx', '--lambdamomx', type=float, default=1.0,\
+                    help='constant for the pde loss')
+parser.add_argument('-lmomz', '--lambdamomz', type=float, default=1.0,\
                     help='constant for the pde loss')
 parser.add_argument('-e', '--epochs', type=int, default=10,\
                     help='number of epochs to train for')
@@ -76,7 +80,7 @@ Y_val = np.append(Y_val,Y,axis=0)
 
 
 ds.set_type("train")
-ellipses=["025"]#,"035","055","075","008","015","006","007","01","02"]
+ellipses=["025","035","055","075","008","015","006","007","01","02"]
 
 e="005"
 pathFile = "ellipse"+e
@@ -96,7 +100,7 @@ else:
  filters = [4,32,128]
 
 
-name = "arch_"+args.architecture+"_epochs_"+str(args.epochs)+"_lr_"+str(args.learningrate)+"_bs_"+str(args.batchsize)+"_act_"+args.activation+"_reg_"+str(args.regularization)+"_RLR_"+str(args.reducelr)
+name = "arch_"+args.architecture+"_epochs_"+str(args.epochs)+"_lr_"+str(args.learningrate)+"_bs_"+str(args.batchsize)+"_act_"+args.activation+"_reg_"+str(args.lambdacont)+"_RLR_"+str(args.reducelr)
 
 with mirrored_strategy.scope():
 
@@ -119,7 +123,7 @@ with mirrored_strategy.scope():
                                kernel_size=(5,5), 
                                strides=(1,1),\
  				global_batch_size = args.batchsize,
-  				beta=[args.regularization],
+  				beta=[args.lambdacont,args.lambdamomx, args.lambdamomz],
                                reg=None)
 
   name = name+"_Data+Pde"
@@ -128,8 +132,8 @@ with mirrored_strategy.scope():
 
 nsCB=[]
 if (args.reducelr):
- nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.8, min_delta=5e-4,\
-                                          patience=20, min_lr=1e-6)]
+ nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.8, min_delta=1e-3,\
+                                          patience=25, min_lr=1e-7)]
 
 nsNet.summary()
 history = nsNet.fit(x=X_train,
