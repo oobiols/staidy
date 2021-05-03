@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from NS_compute_block import *
+from NS_transformer import TransformerLayers
 
 strategy = tf.distribute.MirroredStrategy()
 
@@ -193,7 +194,7 @@ class NSModelSymmCNN(NSModelDataOnly):
                input_shape=(64,256,4),
                filters=[4,16,32,256],
                kernel_size=(5,5),
-		activation="LeakyReLU",
+	       activation="LeakyReLU",
                strides=(1,1), 
                reg=None, 
                lastLinear = False, 
@@ -580,3 +581,108 @@ def infer_range(nn, bottom, right, top, left, xy):
   uvp = nn([bc, xy])
   uvp  = tf.reshape(uvp, (shape3d[0], shape3d[1], 3))
   return uvp
+
+
+
+class NSModelTransformerPinn(NSModelPinn):
+
+     
+  def __init__(self, 
+               input_shape=[64,256,4],
+               patch_size=[32,128],
+	       projection_dim=64,
+               num_heads=4, 
+               transformer_layers=1,
+               masking=0
+               **kwargs):
+
+    super(NSModelPinn, self).__init__(**kwargs)
+    self.patch_size = patch_size
+    self.transformer = TransformerLayers(input_shape=input_shape,
+				         patch_size = patch_size,
+                                         projection_dim = projection_dim,
+                                         num_heads = num_heads,
+                                         transformer_layers=transformer_layers,
+                                         masking=masking)
+
+  def call(self, inputs, training=True):
+
+    to_transformer = tf.concat([inputs[0],inputs[1]],axis=-1)
+    return self.transformer(to_transformer)
+
+  def extract_patches(self,images):
+
+      batch_size = tf.shape(images)[0]
+      channels = tf.shape(images)[3]
+      patches = tf.image.extract_patches(
+            images=images,
+            sizes=[1, self.patch_size[0], self.patch_size[1], 1],
+            strides=[1, self.patch_size[0], self.patch_size[1], 1],
+            rates=[1, 1, 1, 1],
+            padding="VALID",
+        )
+      patch_dims = patches.shape[-1]
+      patches = tf.reshape(patches, [batch_size, -1, patch_dims])
+      patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],self.patch_size[0], self.patch_size[1],channels])
+
+      return patches
+
+  def compute_data_pde_losses(self, uvpnu_input,uvpnu_labels,xz):
+    # track computation for 2nd derivatives for u, v, p
+    with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
+      tape2.watch(xz)
+      with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
+        tape1.watch(xz)
+        flowPred = self([uvpnu_input,xz])
+        u_pred       = flowPred[:,:,:,:,0]
+        v_pred       = flowPred[:,:,:,:,1]
+        p_pred       = flowPred[:,:,:,:,2]
+        nu_pred       = flowPred[:,:,:,:,3]
+
+      # 1st order derivatives
+      xz = self.extract_patches(xz)
+      u_grad   = tape1.gradient(u_pred, xz)
+      v_grad   = tape1.gradient(v_pred, xz)
+      p_grad   = tape1.gradient(p_pred, xz)
+      u_x, u_z = u_grad[:,:,:,:,0], u_grad[:,:,:,:,1]
+      v_x, v_z = v_grad[:,:,:,:,0], v_grad[:,:,:,:,1]
+      p_x, p_z = p_grad[:,:,:,:,0], p_grad[:,:,:,:,1]
+      del tape1
+    # 2nd order derivatives
+    u_xx = tape2.gradient(u_x, xz)[:,:,:,:,0]
+    u_zz = tape2.gradient(u_z, xz)[:,:,:,:,1]
+    v_xx = tape2.gradient(v_x, xz)[:,:,:,:,0]
+    v_zz = tape2.gradient(v_z, xz)[:,:,:,:,1]
+    del tape2
+
+    uvpnu_labels = self.extract_patches(uvpnu_labels)
+    num_patches = uvpnu_labels.shape[1]
+    rows = uvpnu_labels.shape[2]
+
+    uMse = mse(u_pred,uvpnu_labels[:,:,:,:,0]) 
+    uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size*num_patches*rows)
+
+    vMse    = mse(v_pred,uvpnu_labels[:,:,:,:,1])
+    vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size*num_patches*rows)
+      
+    pMse    = mse(p_pred,uvpnu_labels[:,:,:,:,2])
+    pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size*num_patches*rows)
+    
+    nuMse    = mse(nu_pred,uvpnu_labels[:,:,:,:,3])
+    nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size*num_patches*rows)
+
+    # pde error, 0 continuity, 1-2 NS
+    pde0    = u_x + v_z
+    z = tf.zeros(tf.shape(pde0),dtype=tf.float32)
+    pde0Mse    = mse(pde0,z)
+    pde0MseGlobal = tf.nn.compute_average_loss(pde0Mse, global_batch_size=self.global_batch_size*num_patches*rows)
+
+    pde1    = u_pred*u_x + v_pred*u_z + p_x - (0.01+ nu_pred)*(1/6000)*(u_xx + u_zz)
+    pde1Mse    = mse(pde1,z)
+    pde1MseGlobal = tf.nn.compute_average_loss(pde1Mse, global_batch_size=self.global_batch_size*num_patches*rows)
+
+    pde2    = u_pred*v_x + v_pred*v_z + p_z - (0.01 + nu_pred)*(1/6000)*(v_xx + v_zz)
+    pde2Mse    = mse(pde2,z)
+    pde2MseGlobal = tf.nn.compute_average_loss(pde2Mse, global_batch_size=self.global_batch_size*num_patches*rows)
+
+    return uMseGlobal, vMseGlobal, pMseGlobal, nuMseGlobal, pde0MseGlobal, pde1MseGlobal, pde2MseGlobal

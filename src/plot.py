@@ -3,7 +3,6 @@ import numpy as np
 import settings
 import os
 
-from metrics import *
 
 def history(history,name, writing=1):
 
