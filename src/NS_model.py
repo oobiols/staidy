@@ -279,7 +279,7 @@ class NSModelMlpRes(NSModelDataOnly):
 #---------------------------------------------------------------
 class NSModelPinn(keras.Model):
   def __init__(self, 
-               input_shape = (64,256,4),
+               inputshape = [64,256,4],
                filters=[4,32,128,256],\
                kernel_size = (5,5),
                strides = (1,1),
@@ -291,8 +291,8 @@ class NSModelPinn(keras.Model):
                **kwargs):
 
     super(NSModelPinn, self).__init__(**kwargs)
-
-    self.convdeconv= ConvolutionDeconvolutionLayers(input_shape=input_shape,
+    self.inputshape = inputshape
+    self.convdeconv= ConvolutionDeconvolutionLayers(input_shape=self.inputshape,
 							filters=filters,
 							kernel_size=kernel_size, 		
 							strides=strides,
@@ -588,29 +588,29 @@ class NSModelTransformerPinn(NSModelPinn):
 
      
   def __init__(self, 
-               input_shape=[64,256,4],
                patch_size=[32,128],
 	       projection_dim=64,
                num_heads=4, 
                transformer_layers=1,
-               masking=0
+               masking=0,
                **kwargs):
 
-    super(NSModelPinn, self).__init__(**kwargs)
+    super(NSModelTransformerPinn, self).__init__(**kwargs)
+    self.masking = masking
     self.patch_size = patch_size
-    self.transformer = TransformerLayers(input_shape=input_shape,
-				         patch_size = patch_size,
+    self.transformer = TransformerLayers(inputshape=self.inputshape,
+				         patch_size = self.patch_size,
                                          projection_dim = projection_dim,
                                          num_heads = num_heads,
                                          transformer_layers=transformer_layers,
-                                         masking=masking)
+                                         masking=self.masking)
 
   def call(self, inputs, training=True):
 
     to_transformer = tf.concat([inputs[0],inputs[1]],axis=-1)
     return self.transformer(to_transformer)
 
-  def extract_patches(self,images):
+  def extract_input_patches(self,images):
 
       batch_size = tf.shape(images)[0]
       channels = tf.shape(images)[3]
@@ -626,6 +626,20 @@ class NSModelTransformerPinn(NSModelPinn):
       patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],self.patch_size[0], self.patch_size[1],channels])
 
       return patches
+
+  def corrupt_patches(patches,num_patches):
+
+    patches = patches.numpy()
+    batch_size = patches.shape[0]
+
+    for i in range(batch_size):
+     pn = np.random.randint(0,high=num_patches,size=1,dtype=int)[0]
+     patches[i,pn,:] = np.random.randn()
+
+    patches = tf.convert_to_tensor(patches)
+
+    return patches
+
 
   def compute_data_pde_losses(self, uvpnu_input,uvpnu_labels,xz):
     # track computation for 2nd derivatives for u, v, p

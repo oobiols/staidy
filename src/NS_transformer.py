@@ -63,7 +63,7 @@ class PatchEncoder(keras.layers.Layer):
 
 class TransformerLayers(keras.Model):
   def __init__(self, 
-                input_shape=[64,256,6],
+                image_size=[64,256,6],
                 patch_size = [32,128],
                 projection_dim=64,
                 num_heads = 4,
@@ -72,12 +72,12 @@ class TransformerLayers(keras.Model):
                 **kwargs):
 
     super(TransformerLayers, self).__init__(**kwargs)
-
-    imagesize = input_shape[0]*input_shape[1]
+    
+    nPixelsImage
     patchsize = tf.reduce_prod(patch_size)
 
     self.masking = masking
-    self.input_shape = input_shape
+    self.inputshape = inputshape
     self.patch_size = patch_size
     self.num_patches = (imagesize // patchsize)
     self.projection_dim = projection_dim
@@ -90,23 +90,22 @@ class TransformerLayers(keras.Model):
 
   def call(self, inputs):
  
-    patches = Patches(self.patch_size,self.num_patches,self.masking)(inputs)
     encoded_patches = PatchEncoder(self.num_patches,self.projection_dim)(patches)
 
-    for _ in self.transformer_layers:
+    for _ in range(self.transformer_layers):
 
        x1 = keras.layers.LayerNormalization(epsilon=1e-6)(encoded_patches)
        attention_output = keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim, dropout=0.1)(x1,x1)
-       x2 = layers.Add()([attention_output, encoded_patches])
-       x3 = layers.LayerNormalization(epsilon=1e-6)(x2)
+       x2 = keras.layers.Add()([attention_output, encoded_patches])
+       x3 = keras.layers.LayerNormalization(epsilon=1e-6)(x2)
        x3 = mlp(x3, hidden_units=self.transformer_units, dropout_rate=0.1)
-       encoded_patches = layers.Add()([x3, x2])
+       encoded_patches = keras.layers.Add()([x3, x2])
 
     representation = keras.layers.LayerNormalization(epsilon=1e-6)(encoded_patches)
     representation = keras.layers.Flatten()(representation)
     representation = keras.layers.Dropout(0.5)(representation)
     
-    features = keras.layers.Dense(self.num_patches*self.patch_size[0]*self.patch_size[1]*input_shape[2])(representation)
+    features = keras.layers.Dense(self.num_patches*self.patch_size[0]*self.patch_size[1]*self.inputshape[2])(representation)
     reshape = keras.layers.Reshape((int(self.num_patches),int(self.patch_size[0]),int(self.patch_size[1]),int(4)))(features)
     conv2d_1 = keras.layers.Conv2D(filters=4,kernel_size = (5,5),padding = "same", strides = (1,1), activation = 'linear')(reshape)
 

@@ -44,7 +44,8 @@ parser.add_argument('-bs', '--batchsize', type=int, default=64, \
                     help='global batch size')
 parser.add_argument('-rlr', '--reducelr', type=int, default=0, \
                     help='include reduce lr on plateau callback')
-
+parser.add_argument('-tr', '--transformer', type=int, default=1, \
+                    help='use patches and transformer nn')
 
 args = parser.parse_args()
 mirrored_strategy = tf.distribute.MirroredStrategy()
@@ -80,7 +81,7 @@ Y_val = np.append(Y_val,Y,axis=0)
 
 
 ds.set_type("train")
-ellipses=["025","035","055","075","008","015","006","007","01","02"]
+ellipses=[]#["025","035","055","075","008","015","006","007","01","02"]
 
 e="005"
 pathFile = "ellipse"+e
@@ -104,33 +105,9 @@ name = "arch_"+args.architecture+"_epochs_"+str(args.epochs)+"_lr_"+str(args.lea
 
 with mirrored_strategy.scope():
 
- if args.navierstokes==False:
-
-  nsNet = NSModel.NSModelSymmCNN(input_shape = (args.height,args.width,6),
-                               filters=filters, 
- 			       activation=args.activation,
-                               kernel_size=(5,5), 
-                               strides=(1,1),
-			       global_batch_size = args.batchsize,	
-                               reg=None,
-                               lastLinear=True )
-  name = name+"_DataOnly"
-
- else:
-  nsNet = NSModel.NSModelPinn(input_shape = (args.height,args.width,6),
-                               filters=filters, 
-				activation=args.activation,
-                               kernel_size=(5,5), 
-                               strides=(1,1),\
- 				global_batch_size = args.batchsize,
-  				beta=[args.lambdacont,args.lambdamomx, args.lambdamomz],
-                               reg=None)
-
-  name = name+"_Data+Pde"
-
  if args.transformer==True:
 
-  nsNet = NSModel.NSModelTransformerPinn(input_shape = [args.height,args.width,6],
+  nsNet = NSModel.NSModelTransformerPinn(inputshape = [args.height,args.width,6],
                                          patch_size=[32,128],
                                          projection_dim=16,
                                          num_heads=4,
@@ -139,7 +116,7 @@ with mirrored_strategy.scope():
  				         global_batch_size = args.batchsize,
   				         beta=[args.lambdacont,args.lambdamomx, args.lambdamomz],
                                reg=None)
- nsNet.compile(optimizer=keras.optimizers.Adam(learning_rate=args.learningrate))
+ nsNet.compile(optimizer=keras.optimizers.Adam(learning_rate=args.learningrate),run_eagerly=True)
 
 
 nsCB=[]
