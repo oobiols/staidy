@@ -632,7 +632,7 @@ class NSModelTransformerPinn(NSModelPinn):
       patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],self.patch_size[0], self.patch_size[1],channels])
 
       if (self.masking):
-        patches = corrupt_patches(patches)
+        patches = self.corrupt_patches(patches)
 
       return patches
 
