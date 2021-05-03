@@ -588,6 +588,7 @@ class NSModelTransformerPinn(NSModelPinn):
 
      
   def __init__(self, 
+               image_size=[64,256,6],
                patch_size=[32,128],
 	       projection_dim=64,
                num_heads=4, 
@@ -596,9 +597,14 @@ class NSModelTransformerPinn(NSModelPinn):
                **kwargs):
 
     super(NSModelTransformerPinn, self).__init__(**kwargs)
+    
+    self.nPatchesImage = (image_size[0]*image_size[1] // (patch_size[0]*patch_size[1]) )
+    self.nRowsPatch = patch_size[0]
+
     self.masking = masking
     self.patch_size = patch_size
-    self.transformer = TransformerLayers(inputshape=self.inputshape,
+
+    self.transformer = TransformerLayers(image_size=image_size,
 				         patch_size = self.patch_size,
                                          projection_dim = projection_dim,
                                          num_heads = num_heads,
@@ -610,7 +616,7 @@ class NSModelTransformerPinn(NSModelPinn):
     to_transformer = tf.concat([inputs[0],inputs[1]],axis=-1)
     return self.transformer(to_transformer)
 
-  def extract_input_patches(self,images):
+  def extract_2d_patches(self,images):
 
       batch_size = tf.shape(images)[0]
       channels = tf.shape(images)[3]
@@ -625,16 +631,19 @@ class NSModelTransformerPinn(NSModelPinn):
       patches = tf.reshape(patches, [batch_size, -1, patch_dims])
       patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],self.patch_size[0], self.patch_size[1],channels])
 
+      if (self.masking):
+        patches = corrupt_patches(patches)
+
       return patches
 
-  def corrupt_patches(patches,num_patches):
+  def corrupt_patches(patches):
 
     patches = patches.numpy()
     batch_size = patches.shape[0]
 
     for i in range(batch_size):
-     pn = np.random.randint(0,high=num_patches,size=1,dtype=int)[0]
-     patches[i,pn,:] = np.random.randn()
+     pn = np.random.randint(0,high=self.nPatchesImage,size=1,dtype=int)[0]
+     patches[i,pn,:,:,:] = np.random.randn()
 
     patches = tf.convert_to_tensor(patches)
 
@@ -643,6 +652,12 @@ class NSModelTransformerPinn(NSModelPinn):
 
   def compute_data_pde_losses(self, uvpnu_input,uvpnu_labels,xz):
     # track computation for 2nd derivatives for u, v, p
+
+    uvpnu_input = self.extract_2d_patches(uvpnu_input)
+    xz = self.extract_2d_patches(xz)
+    uvpnu_labels = self.extract_2d_patches(uvpnu_labels)
+
+    mse = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
     with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
       tape2.watch(xz)
       with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
@@ -669,34 +684,31 @@ class NSModelTransformerPinn(NSModelPinn):
     v_zz = tape2.gradient(v_z, xz)[:,:,:,:,1]
     del tape2
 
-    uvpnu_labels = self.extract_patches(uvpnu_labels)
-    num_patches = uvpnu_labels.shape[1]
-    rows = uvpnu_labels.shape[2]
 
     uMse = mse(u_pred,uvpnu_labels[:,:,:,:,0]) 
-    uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size*num_patches*rows)
+    uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
     vMse    = mse(v_pred,uvpnu_labels[:,:,:,:,1])
-    vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size*num_patches*rows)
+    vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
       
     pMse    = mse(p_pred,uvpnu_labels[:,:,:,:,2])
-    pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size*num_patches*rows)
+    pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
     
     nuMse    = mse(nu_pred,uvpnu_labels[:,:,:,:,3])
-    nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size*num_patches*rows)
+    nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
     # pde error, 0 continuity, 1-2 NS
     pde0    = u_x + v_z
     z = tf.zeros(tf.shape(pde0),dtype=tf.float32)
     pde0Mse    = mse(pde0,z)
-    pde0MseGlobal = tf.nn.compute_average_loss(pde0Mse, global_batch_size=self.global_batch_size*num_patches*rows)
+    pde0MseGlobal = tf.nn.compute_average_loss(pde0Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
     pde1    = u_pred*u_x + v_pred*u_z + p_x - (0.01+ nu_pred)*(1/6000)*(u_xx + u_zz)
     pde1Mse    = mse(pde1,z)
-    pde1MseGlobal = tf.nn.compute_average_loss(pde1Mse, global_batch_size=self.global_batch_size*num_patches*rows)
+    pde1MseGlobal = tf.nn.compute_average_loss(pde1Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
     pde2    = u_pred*v_x + v_pred*v_z + p_z - (0.01 + nu_pred)*(1/6000)*(v_xx + v_zz)
     pde2Mse    = mse(pde2,z)
-    pde2MseGlobal = tf.nn.compute_average_loss(pde2Mse, global_batch_size=self.global_batch_size*num_patches*rows)
+    pde2MseGlobal = tf.nn.compute_average_loss(pde2Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
     return uMseGlobal, vMseGlobal, pMseGlobal, nuMseGlobal, pde0MseGlobal, pde1MseGlobal, pde2MseGlobal

@@ -107,7 +107,7 @@ with mirrored_strategy.scope():
 
  if args.transformer==True:
 
-  nsNet = NSModel.NSModelTransformerPinn(inputshape = [args.height,args.width,6],
+  nsNet = NSModel.NSModelTransformerPinn(image_size = [args.height,args.width,6],
                                          patch_size=[32,128],
                                          projection_dim=16,
                                          num_heads=4,

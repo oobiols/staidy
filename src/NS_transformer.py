@@ -9,44 +9,6 @@ def mlp(x, hidden_units, dropout_rate):
     return x
 
 
-def corrupt_patches(patches,num_patches):
-
-    patches = patches.numpy()
-    batch_size = patches.shape[0]
-
-    for i in range(batch_size):
-     pn = np.random.randint(0,high=num_patches,size=1,dtype=int)[0]
-     patches[i,pn,:] = np.random.randn()
-
-    patches = tf.convert_to_tensor(patches)
-
-    return patches
-
-class Patches(keras.layers.Layer):
-
-    def __init__(self, patch_size, num_patches, masking=0):
-        super(Patches, self).__init__()
-        self.patch_size = patch_size
-        self.num_patches = num_patches
-        self.masking = masking
-
-    def call(self, images):
-        batch_size = tf.shape(images)[0]
-        patches = tf.image.extract_patches(
-            images=images,
-            sizes=[1, self.patch_size[0], self.patch_size[1], 1],
-            strides=[1, self.patch_size[0], self.patch_size[1], 1],
-            rates=[1, 1, 1, 1],
-            padding="VALID",
-        )
-        patch_dims = patches.shape[-1]
-        patches = tf.reshape(patches, [batch_size, -1, patch_dims])
-   
-        if (self.masking):
-            patches = corrupt_patches(patches,self.num_patches)
-  
-        return patches
-
 class PatchEncoder(keras.layers.Layer):
     def __init__(self, num_patches, projection_dim):
         super(PatchEncoder, self).__init__()
@@ -61,7 +23,7 @@ class PatchEncoder(keras.layers.Layer):
         encoded = self.projection(patch) + self.position_embedding(positions)
         return encoded
 
-class TransformerLayers(keras.Model):
+class TransformerLayers(keras.layers.Layer):
   def __init__(self, 
                 image_size=[64,256,6],
                 patch_size = [32,128],
@@ -73,13 +35,23 @@ class TransformerLayers(keras.Model):
 
     super(TransformerLayers, self).__init__(**kwargs)
     
-    nPixelsImage
-    patchsize = tf.reduce_prod(patch_size)
 
-    self.masking = masking
-    self.inputshape = inputshape
+    self.image_size = image_size
     self.patch_size = patch_size
-    self.num_patches = (imagesize // patchsize)
+    
+    self.channelsInput = image_size[2]
+    self.channelsOutput = 4
+
+    self.nRowsImage = image_size[0]
+    self.nColumnsImage = image_size[1]
+    self.nPixelsImage = self.nRowsImage * self.nColumnsImage
+
+    self.nRowsPatch = patch_size[0]
+    self.nColumnsPatch = patch_size[1]
+    self.nPixelsPatch = self.nRowsPatch * self.nColumnsPatch
+
+    self.nPatchesImage = ( ( self.nPixelsImage  ) // (self.nPixelsPatch) )
+
     self.projection_dim = projection_dim
     self.num_heads = num_heads
     self.transformer_layers = transformer_layers
@@ -89,8 +61,9 @@ class TransformerLayers(keras.Model):
                          ]
 
   def call(self, inputs):
- 
-    encoded_patches = PatchEncoder(self.num_patches,self.projection_dim)(patches)
+
+    patches = keras.layers.Reshape( (int(self.nPatchesImage), int(self.nPixelsPatch*self.channelsInput) ) )(inputs)
+    encoded_patches = PatchEncoder(self.nPatchesImage,self.projection_dim)(patches)
 
     for _ in range(self.transformer_layers):
 
@@ -105,8 +78,8 @@ class TransformerLayers(keras.Model):
     representation = keras.layers.Flatten()(representation)
     representation = keras.layers.Dropout(0.5)(representation)
     
-    features = keras.layers.Dense(self.num_patches*self.patch_size[0]*self.patch_size[1]*self.inputshape[2])(representation)
-    reshape = keras.layers.Reshape((int(self.num_patches),int(self.patch_size[0]),int(self.patch_size[1]),int(4)))(features)
+    features = keras.layers.Dense(self.nPatchesImage*self.nPixelsPatch*self.channelsOutput)(representation)
+    reshape = keras.layers.Reshape((int(self.nPatchesImage),int(self.nRowsPatch),int(self.nColumnsPatch),int(self.channelsOutput)))(features)
     conv2d_1 = keras.layers.Conv2D(filters=4,kernel_size = (5,5),padding = "same", strides = (1,1), activation = 'linear')(reshape)
 
     return conv2d_1
