@@ -52,7 +52,6 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 
 size = [args.height,args.width,4]
 
-######
 ##### Validation dataset #####
 ###############################
 ds = Dataset(size=size, 
@@ -75,7 +74,6 @@ Y_val = np.append(Y_val,Y,axis=0)
 #X_val =np.append(X_val,X,axis=0)
 #Y_val = np.append(Y_val,Y,axis=0)
 
-####
 #### Training dataset #####
 ###########################
 
@@ -124,7 +122,12 @@ if (args.reducelr):
  nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.8, min_delta=1e-3,\
                                           patience=25, min_lr=1e-7)]
 
-nsNet.summary()
+
+X_train = nsNet.extract_2d_patches(X_train)
+Y_train = nsNet.extract_2d_patches(Y_train)
+X_val = nsNet.extract_2d_patches(X_val)
+Y_val = nsNet.extract_2d_patches(Y_val)
+
 history = nsNet.fit(x=X_train,
                     y=Y_train,
                     batch_size=args.batchsize,
