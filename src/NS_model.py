@@ -636,7 +636,7 @@ class NSModelTransformerPinn(NSModelPinn):
 
       return patches
 
-  def corrupt_patches(patches):
+  def corrupt_patches(self,patches):
 
     patches = patches.numpy()
     batch_size = patches.shape[0]
@@ -782,7 +782,7 @@ class NSModelTransformerPinn(NSModelPinn):
 
     loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
 
-    loss += tf.add_n(self.losses)
+    #loss += tf.add_n(self.losses)
     # track loss and mae
     self.validMetrics['loss'].update_state(loss)
     self.validMetrics['data_loss'].update_state(data_loss)
