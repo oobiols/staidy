@@ -612,42 +612,9 @@ class NSModelTransformerPinn(NSModelPinn):
                                          masking=self.masking)
 
   def call(self, inputs, training=True):
-
+#    to_transformer = inputs
     to_transformer = tf.concat([inputs[0],inputs[1]],axis=-1)
     return self.transformer(to_transformer)
-
-  def extract_2d_patches(self,images):
-
-      batch_size = tf.shape(images)[0]
-      channels = tf.shape(images)[3]
-      patches = tf.image.extract_patches(
-            images=images,
-            sizes=[1, self.patch_size[0], self.patch_size[1], 1],
-            strides=[1, self.patch_size[0], self.patch_size[1], 1],
-            rates=[1, 1, 1, 1],
-            padding="VALID",
-        )
-      patch_dims = patches.shape[-1]
-      patches = tf.reshape(patches, [batch_size, -1, patch_dims])
-      patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],self.patch_size[0], self.patch_size[1],channels])
-
-      if (self.masking):
-        patches = self.corrupt_patches(patches)
-
-      return patches
-
-  def corrupt_patches(self,patches):
-
-    patches = patches.numpy()
-    batch_size = patches.shape[0]
-
-    for i in range(batch_size):
-     pn = np.random.randint(0,high=self.nPatchesImage,size=1,dtype=int)[0]
-     patches[i,pn,:,:,:] = np.random.randn()
-
-    patches = tf.convert_to_tensor(patches)
-
-    return patches
 
 
   def compute_data_pde_losses(self, uvpnu_input,uvpnu_labels,xz):
