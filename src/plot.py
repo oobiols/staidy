@@ -35,11 +35,11 @@ def history(history,name, writing=1):
  
 
  plt.legend(prop={'size': 6}) 
- plt.ylim(1e-8,1)
+ plt.ylim(1e-8,10)
  plt.xlabel("epoch")
  plt.ylabel("loss")
  plt.yscale("log")
- plt.grid(True)
+ plt.grid(b=True,which='both',axis='both')
  plt.savefig('./histories/'+title+'.png')
  plt.close()
 

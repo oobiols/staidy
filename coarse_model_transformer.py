@@ -52,8 +52,6 @@ parser.add_argument('-ah', '--attention', type=int, default=4, \
                     help='number of attention heads')
 parser.add_argument('-pr', '--projection', type=int, default=4, \
                     help='number of projection dimentions for the patch encoder')
-parser.add_argument('-pr', '--projection', type=int, default=4, \
-                    help='number of projection dimentions for the patch encoder')
 args = parser.parse_args()
 mirrored_strategy = tf.distribute.MirroredStrategy()
 
@@ -69,42 +67,39 @@ ds = Dataset(size=image_size,
 ds.set_type("validation")
 ds.set_name("ellipse03")
 X_val, Y_val = ds.load_dataset()
-X_val , Y_val = extract_2d_patches(X_val,patch_size,masking), extract_2d_patches(Y_val,patch_size,0)
-
+X_val , Y_val = extract_2d_patches(X_val,patch_size=patch_size,masking=0), extract_2d_patches(Y_val,patch_size=patch_size,masking=0)
+X_val,Y_val = shuffle(X_val,Y_val)
+print(X_val.shape)
 
 ds.set_type("train")
 ds.set_name("ellipse045")
 X, Y  = ds.load_dataset()
-X , Y = extract_2d_patches(X,patch_size,masking), extract_2d_patches(Y,patch_size,masking)
-###
-#X_val =np.append(X_val,X,axis=0)
-#Y_val = np.append(Y_val,Y,axis=0)
+X , Y = extract_2d_patches(X,patch_size=patch_size,masking=0), extract_2d_patches(Y,patch_size=patch_size,masking=0)
+print(X.shape)
 
-#ds.set_name("NACA0012")
-#X, Y  = ds.load_dataset()
-#
-#X_val =np.append(X_val,X,axis=0)
-#Y_val = np.append(Y_val,Y,axis=0)
+X_val =np.append(X_val,X,axis=0)
+Y_val = np.append(Y_val,Y,axis=0)
+
+print(X_val.shape)
 
 #### Training dataset #####
 ###########################
 
-
 ds.set_type("train")
-ellipses=["025","035","055","075","008","015","006","007","01"]#,"02"]
+ellipses=["025","035","055","075","008","015","006","007","01","02"]
 
 e="005"
 pathFile = "ellipse"+e
 ds.set_name(pathFile)
 X_train, Y_train =ds.load_dataset()
-X_train , Y_train = extract_2d_patches(X_train,patch_size,masking), extract_2d_patches(Y_train,patch_size, 0)
+X_train , Y_train = extract_2d_patches(X_train,patch_size=patch_size,masking=args.masking), extract_2d_patches(Y_train,patch_size=patch_size, masking=0)
 
 
 for i in ellipses:
  pathFile = "ellipse"+i
  ds.set_name(pathFile)
  X , Y = ds.load_dataset()
- X , Y = extract_2d_patches(X,patch_size,masking), extract_2d_patches(Y,patch_size,0)
+ X , Y = extract_2d_patches(X,patch_size=patch_size,masking=args.masking), extract_2d_patches(Y,patch_size=patch_size,masking=0)
  X_train , Y_train = np.append(X_train,X,axis=0) , np.append(Y_train,Y,axis=0)
 
 name = "epochs_"+str(args.epochs)+\
@@ -116,7 +111,6 @@ name = "epochs_"+str(args.epochs)+\
        "_projection_"+str(args.projection)+\
        "_attention_"+str(args.attention)+\
        "_Transformer"
-
 
 nsNet = NSModel.NSModelTransformerPinn(image_size = image_size,
                                        patch_size=patch_size,
@@ -139,7 +133,6 @@ if (args.reducelr):
       						 patience=args.patience,
 						 min_lr=1e-7)
       ]
-
 
 print("X train shape ", X_train.shape)
 print("Y train shape ",Y_train.shape)
