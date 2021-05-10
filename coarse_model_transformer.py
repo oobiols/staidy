@@ -125,9 +125,10 @@ nsNet = NSModel.NSModelTransformerPinn(image_size = image_size,
 nsNet.compile(optimizer=keras.optimizers.Adam(learning_rate=args.learningrate),
 	      run_eagerly=True)
 
-w = nsNet.initialize(model_name='./ViT/ViT-B_16.npz')
-print(w.shape)
-
+#w = nsNet.initialize(model_name='./ViT/ViT-B_16.npz')
+w = nsNet.layers[0].get_weights()
+for item in w:
+ print(w.shape)
 
 #nsCB=[]
 #if (args.reducelr):

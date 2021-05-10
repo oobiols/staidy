@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from NS_compute_block import *
-from NS_transformer import TransformerLayers
+from NS_transformer import VisionTransformerLayers
 
 strategy = tf.distribute.MirroredStrategy()
 
@@ -590,7 +590,7 @@ class NSModelTransformerPinn(NSModelPinn):
   def __init__(self, 
                image_size=[64,256,6],
                patch_size=[32,128],
-               projection_dim_encoder=768
+               projection_dim_encoder=768,
 	       projection_dim_attention=64,
                num_heads=4, 
                transformer_layers=1,
@@ -617,7 +617,7 @@ class NSModelTransformerPinn(NSModelPinn):
 
 
 
-  def initialize(self,model_name='ViT-B_16.npz')
+  def initialize(self,model_name='ViT-B_16.npz'):
 
    weights = self.transformer.layers[5].get_weights()
    

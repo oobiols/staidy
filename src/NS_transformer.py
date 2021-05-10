@@ -117,8 +117,8 @@ class VisionTransformerLayers(keras.layers.Layer):
     self.num_heads = num_heads
     self.transformer_layers = transformer_layers
     self.transformer_units = [
-    self.projection_dim * 2,
-    self.projection_dim,
+    self.projection_dim_encoder * 2,
+    self.projection_dim_encoder,
                          ]
 
     self.Norm0 = []
@@ -152,7 +152,7 @@ class VisionTransformerLayers(keras.layers.Layer):
     self.Flatten = keras.layers.Flatten()
     self.MapDense = keras.layers.Dense(self.nPixelsPatch,activation=tf.nn.gelu)
     self.MapReshape0 = keras.layers.Reshape( (self.nRowsPatch//2,self.nColumnsPatch//2,self.channelsOutput) )
-    self.MapDeconv = keras.layes.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(4,4),activation='linear')
+    self.MapDeconv = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(4,4),activation='linear')
     self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput) )
 
 #    self.Flatten = keras.layers.Flatten()
@@ -177,7 +177,7 @@ class VisionTransformerLayers(keras.layers.Layer):
 #    self.Activation_4 = keras.layers.LeakyReLU(alpha=0.2)
    
    
-   def call(self, inputs):
+  def call(self, inputs):
 
     patches = self.Patches(inputs)
     encoded_patches = self.EncodedPatches(patches)
