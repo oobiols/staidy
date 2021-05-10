@@ -84,17 +84,17 @@ class PatchEncoder(keras.layers.Layer):
         encoded = self.projection(patch) + self.position_embedding(positions)
         return encoded
 
-class TransformerLayers(keras.layers.Layer):
+class VisionTransformerLayers(keras.layers.Layer):
   def __init__(self, 
                image_size=[64,256,6],
                patch_size = [32,128],
-               projection_dim=64,
+               projection_dim_encoder=768,
+               projection_dim_attention=64,
                num_heads = 4,
-               transformer_layers=1,
-               masking=0,
+               transformer_layers=12,
                **kwargs):
 
-    super(TransformerLayers, self).__init__(**kwargs)
+    super(VisionTransformerLayers, self).__init__(**kwargs)
 
     self.image_size = image_size
     self.patch_size = patch_size
@@ -112,7 +112,8 @@ class TransformerLayers(keras.layers.Layer):
 
     self.nPatchesImage = ( ( self.nPixelsImage  ) // (self.nPixelsPatch) )
 
-    self.projection_dim = projection_dim
+    self.projection_dim_encoder = projection_dim_encoder
+    self.projection_dim_attention = projection_dim_attention
     self.num_heads = num_heads
     self.transformer_layers = transformer_layers
     self.transformer_units = [
@@ -120,53 +121,84 @@ class TransformerLayers(keras.layers.Layer):
     self.projection_dim,
                          ]
 
+    self.Norm0 = []
+    self.Norm1 = []
+    self.Attention = []
+    self.Dense0 = []
+    self.Dense1 = []
+    self.Dropout0 = []
+    self.Dropout1 = []
+    self.Add0 = []
+    self.Add1 = []
+
     self.Patches = keras.layers.Reshape( (int(self.nPatchesImage), int(self.nPixelsPatch*self.channelsInput) ) )
-    self.EncodedPatches = PatchEncoder(self.nPatchesImage,self.projection_dim)
+    self.EncodedPatches = PatchEncoder(self.nPatchesImage,self.projection_dim_encoder)
+
+    #transformer encoder
+    for _ in range(transformer_layers):
+
+        self.Norm0.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True))
+        self.Attention.append(keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim_attention, dropout=0.1,trainable=False))
+        self.Add0.append(keras.layers.Add())
+        self.Norm1.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True))
+        self.Dense0.append(keras.layers.Dense(4*self.projection_dim_encoder,activation= tf.nn.gelu,trainable=False))
+        self.Dropout0.append(keras.layers.Dropout(rate=0.1))
+        self.Dense1.append(keras.layers.Dense(self.projection_dim_encoder,activation= tf.nn.gelu,trainable=False))
+        self.Dropout1.append(keras.layers.Dropout(rate=0.1))
+        self.Add1.append(keras.layers.Add())
+
     
-    self.Normalization_1 = keras.layers.LayerNormalization(epsilon=1e-6)
-    self.AttentionOutput = keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim, dropout=0.1)
-    self.Add_1 = keras.layers.Add()
-    self.Normalization_2 = keras.layers.LayerNormalization(epsilon=1e-6)
-    self.Dense_1 = keras.layers.Dense(self.projection_dim*2)
-    self.Activation_1 = keras.layers.LeakyReLU(alpha=0.2)
-    self.Dropout_1 = keras.layers.Dropout(rate=0.1)
-    self.Dense_2= keras.layers.Dense(self.projection_dim)
-    self.Activation_2 = keras.layers.LeakyReLU(alpha=0.2)
-    self.Dropout_2 = keras.layers.Dropout(rate=0.1)
-    self.Add_2 = keras.layers.Add()
-
-    self.Normalization_3 = keras.layers.LayerNormalization(epsilon=1e-6)
+    #map to steady state
     self.Flatten = keras.layers.Flatten()
-    self.Dense_3 = keras.layers.Dense(self.nPatchesImage*self.nPixelsPatch*self.channelsOutput)
-    self.Activation_3 = keras.layers.LeakyReLU(alpha=0.2)
-    self.Reshape = keras.layers.Reshape((int(self.nPatchesImage),int(self.nRowsPatch),int(self.nColumnsPatch),int(self.channelsOutput)))
-    self.Conv2D_1 = keras.layers.Conv2D(filters=4,kernel_size = (5,5),padding = "same", strides = (1,1),activation='linear')
-    self.Activation_4 = keras.layers.LeakyReLU(alpha=0.2)
+    self.MapDense = keras.layers.Dense(self.nPixelsPatch,activation=tf.nn.gelu)
+    self.MapReshape0 = keras.layers.Reshape( (self.nRowsPatch//2,self.nColumnsPatch//2,self.channelsOutput) )
+    self.MapDeconv = keras.layes.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(4,4),activation='linear')
+    self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput) )
 
-  def call(self, inputs):
+#    self.Flatten = keras.layers.Flatten()
+#    self.Normalization_1 = keras.layers.LayerNormalization(epsilon=1e-6)
+#    self.AttentionOutput = keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim, dropout=0.1)
+#    self.Add_1 = keras.layers.Add()
+#    self.Normalization_2 = keras.layers.LayerNormalization(epsilon=1e-6)
+#    self.Dense_1 = keras.layers.Dense(self.projection_dim*2)
+#    self.Activation_1 = keras.layers.LeakyReLU(alpha=0.2)
+#    self.Dropout_1 = keras.layers.Dropout(rate=0.1)
+#    self.Dense_2= keras.layers.Dense(self.projection_dim)
+#    self.Activation_2 = keras.layers.LeakyReLU(alpha=0.2)
+#    self.Dropout_2 = keras.layers.Dropout(rate=0.1)
+#    self.Add_2 = keras.layers.Add()
+#
+#    self.Normalization_3 = keras.layers.LayerNormalization(epsilon=1e-6)
+#    self.Flatten = keras.layers.Flatten()
+#    self.Dense_3 = keras.layers.Dense(self.nPatchesImage*self.nPixelsPatch*self.channelsOutput)
+#    self.Activation_3 = keras.layers.LeakyReLU(alpha=0.2)
+#    self.Reshape = keras.layers.Reshape((int(self.nPatchesImage),int(self.nRowsPatch),int(self.nColumnsPatch),int(self.channelsOutput)))
+#    self.Conv2D_1 = keras.layers.Conv2D(filters=4,kernel_size = (5,5),padding = "same", strides = (1,1),activation='linear')
+#    self.Activation_4 = keras.layers.LeakyReLU(alpha=0.2)
+   
+   
+   def call(self, inputs):
 
     patches = self.Patches(inputs)
     encoded_patches = self.EncodedPatches(patches)
 
-    # transformer
-    x1 = self.Normalization_1(encoded_patches)
-    attention_output = self.AttentionOutput(x1,x1)
-    x2 = self.Add_1([attention_output,encoded_patches]) 
-    x3 = self.Normalization_2(x2)
-    x3 = self.Dense_1(x3)
-    x3 = self.Activation_1(x3)
-    x3 = self.Dropout_1(x3)
-    x3 = self.Dense_2(x3)
-    x3 = self.Activation_2(x3)
-    x3 = self.Dropout_2(x3)
-    encoded_patches = self.Add_2([x3,x2])
+    for i in range(self.transformer_layers):
+
+     x1 = self.Norm0[i](encoded_patches)
+     attention = self.Attention[i](x1,x1)
+     x2 = self.Add0[i]([attention_output,encoded_patches]) 
+     x3 = self.Norm1[i](x2)
+     x3 = self.Dense0[i](x3)
+     x3 = self.Dropout0[i](x3)
+     x3 = self.Dense1[i](x3)
+     x3 = self.Dropout1[i](x3)
+     encoded_patches = self.Add1[i]([x3,x2])
 
     #map to steady-state patches 
-    x = self.Normalization_3(encoded_patches)
-    x = self.Flatten(x)
-    x = self.Dense_3(x)
-    x = self.Activation_3(x)
-    x = self.Reshape(x)
-    x = self.Conv2D_1(x)
-
-    return x
+    x = self.Flatten(encoded_patches)
+    x = self.MapDense(x)
+    x = self.MapReshape0(x)
+    x = self.MapDeconv(x)
+    x = self.MapReshape1(x)
+    
+    return x 

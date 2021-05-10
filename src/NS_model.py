@@ -590,10 +590,10 @@ class NSModelTransformerPinn(NSModelPinn):
   def __init__(self, 
                image_size=[64,256,6],
                patch_size=[32,128],
-	       projection_dim=64,
+               projection_dim_encoder=768
+	       projection_dim_attention=64,
                num_heads=4, 
                transformer_layers=1,
-               masking=0,
                **kwargs):
 
     super(NSModelTransformerPinn, self).__init__(**kwargs)
@@ -601,20 +601,27 @@ class NSModelTransformerPinn(NSModelPinn):
     self.nPatchesImage = (image_size[0]*image_size[1] // (patch_size[0]*patch_size[1]) )
     self.nRowsPatch = patch_size[0]
 
-    self.masking = masking
     self.patch_size = patch_size
 
-    self.transformer = TransformerLayers(image_size=image_size,
+    self.transformer = VisionTransformerLayers(image_size=image_size,
 				         patch_size = self.patch_size,
-                                         projection_dim = projection_dim,
+                                         projection_dim_encoder = projection_dim_encoder,
+                                         projection_dim_attention = projection_dim_attention,
                                          num_heads = num_heads,
                                          transformer_layers=transformer_layers,
-                                         masking=self.masking)
+                                         )
 
   def call(self, inputs, training=True):
-#    to_transformer = inputs
     to_transformer = tf.concat([inputs[0],inputs[1]],axis=-1)
     return self.transformer(to_transformer)
+
+
+
+  def initialize(self,model_name='ViT-B_16.npz')
+
+   weights = self.transformer.layers[5].get_weights()
+   
+   return weights
 
 
   def compute_data_pde_losses(self, uvpnu_input,uvpnu_labels,xz):
