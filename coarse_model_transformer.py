@@ -128,8 +128,14 @@ nsNet = NSTransformer(image_size = image_size,
 
 nsNet.build(input_shape=(None,4,32,128,6))
 nsNet.summary()
+nsNet.set_weights('./ViT/ViT-B_16.npz')
+w=nsNet.layers[0].get_weights()
+for item in w:
+ print(item)
 nsNet.compile(optimizer=keras.optimizers.Adam(learning_rate=args.learningrate),
 	      run_eagerly=True)
+
+
 
 #w = nsNet.initialize(model_name='./ViT/ViT-B_16.npz')
 #nsCB=[]

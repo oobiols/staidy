@@ -99,11 +99,11 @@ class NSTransformer(keras.Model):
     self.Add0 = []
     self.Add1 = []
 
-    self.Preprocess()
-    self.Encoder()
-    self.Task()
+    self.preprocess()
+    self.encoder()
+    self.task()
 
-  def Preprocess(self):
+  def preprocess(self):
 
     self.InitialReshape = keras.layers.Reshape((self.image_size[0],self.image_size[1],self.image_size[2]))
     self.InitialDeconv =keras.layers.Conv2DTranspose(filters=3,kernel_size=(49,193),strides=(1,1),padding="valid",name="Pre/Deconv")
@@ -112,15 +112,15 @@ class NSTransformer(keras.Model):
     self.PositionEmbedding = PositionEmbedding(196,self.projection_dim_encoder)
 
 
-  def Task(self):
+  def task(self):
 
-      self.Flatten = keras.layers.Flatten(name="Task/Flatten")
-      self.MapDense = keras.layers.Dense(self.nPixelsPatch//20,activation=tf.nn.gelu,name="Task/Dense")
-#      self.MapReshape0 = keras.layers.Reshape( (self.nRowsPatch//2,self.nColumnsPatch//2,self.channelsOutput),name="Task/Reshape" )
-#      self.MapDeconv = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(4,4),activation='linear',name="Task/Conv")
-#      self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput),name="Task/Reshape_Out" )
+    self.Flatten = keras.layers.Flatten(name="Task/Flatten")
+    self.MapDense = keras.layers.Dense(16,activation=tf.nn.gelu,name="Task/Dense")
+    self.MapReshape0 = keras.layers.Reshape( (2,2,self.channelsOutput),name="Task/Reshape" )
+    self.MapDeconv = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(32,128),activation='linear',name="Task/Conv")
+    self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput),name="Task/Reshape_Out" )
 
-  def Encoder(self):
+  def encoder(self):
 
       for i in range(self.transformer_layers):
  
@@ -136,6 +136,35 @@ class NSTransformer(keras.Model):
         self.Dropout1.append(keras.layers.Dropout(rate=0.1,name=name+'Dropout1'))
         self.Add1.append(keras.layers.Add(name=name+"Add1"))
 
+
+
+  def set_weights(self,vit):
+     
+    t = self.transformer_layers
+    wvit = np.load(vit)
+
+    for i in range(self.transformer_layers):
+     norm0=i
+     norm1=i+t
+     attention = i+2*t
+     dense0 = i+3*t
+     dense1 = i+4*t
+     
+     w = []      
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_0/scale'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_0/bias'])
+
+     self.layers[norm0].set_weights(w)
+    
+     w.clear()
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_2/scale'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_2/bias'])
+  
+     self.layers[norm1].set_weights(w)
+
+     w.clear()
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_/scale'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_2/bias'])
 
   def call(self, inputs):
  
@@ -159,9 +188,9 @@ class NSTransformer(keras.Model):
 
     x = self.Flatten(embedding)
     x = self.MapDense(x)
-#    x = self.MapReshape0(x)
-#    x = self.MapDeconv(x)
-#    x = self.MapReshape1(x)
-
+    x = self.MapReshape0(x)
+    x = self.MapDeconv(x)
+    x = self.MapReshape1(x)
+    print(x.shape)
 
     return x
