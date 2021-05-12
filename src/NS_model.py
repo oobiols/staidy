@@ -292,11 +292,11 @@ class NSModelPinn(keras.Model):
 
     super(NSModelPinn, self).__init__(**kwargs)
     self.inputshape = inputshape
-    self.convdeconv= ConvolutionDeconvolutionLayers(input_shape=self.inputshape,
-							filters=filters,
-							kernel_size=kernel_size, 		
-							strides=strides,
-							activation=activation)
+    self.convdeconv= None#ConvolutionDeconvolutionLayers(input_shape=self.inputshape,
+#							filters=filters,
+#							kernel_size=kernel_size, 		
+#							strides=strides,
+#							activation=activation)
       
     # coefficient for data and pde loss
     self.beta  = beta
@@ -518,12 +518,12 @@ class NSModelPinn(keras.Model):
       self.validMetrics[key].reset_states()
 
 
-  def summary(self):
+  def parameters(self):
     nVar = 0
     for t in self.trainable_variables:
       print(t.name, t.shape)
       nVar += tf.reduce_prod(t.shape)
-    print('{} trainalbe variables'.format(nVar))
+    print('{} trainable variables'.format(nVar))
 
 
   def preview(self):
@@ -612,7 +612,8 @@ class NSModelTransformerPinn(NSModelPinn):
                                          )
 
   def call(self, inputs, training=True):
-    to_transformer = tf.concat([inputs[0],inputs[1]],axis=-1)
+    to_transformer = inputs
+    #to_transformer = tf.concat([inputs[0],inputs[1]],axis=-1)
     return self.transformer(to_transformer)
 
 

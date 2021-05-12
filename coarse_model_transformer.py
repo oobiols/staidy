@@ -8,6 +8,7 @@ from tensorflow import keras
 import NS_model as NSModel
 from NS_dataset import *
 from NS_transformer import *
+from NS_transformer_test import * 
 from data_generator import DataGenerator, SimpleGenerator
 from Dataset import Dataset
 from sklearn.utils import shuffle
@@ -48,9 +49,11 @@ parser.add_argument('-hp', '--patchheight', type=int, default=32, \
                     help='mask some patches')
 parser.add_argument('-wp', '--patchwidth', type=int, default=128, \
                     help='mask some patches')
-parser.add_argument('-ah', '--attention', type=int, default=4, \
+parser.add_argument('-ah', '--attention', type=int, default=12, \
                     help='number of attention heads')
-parser.add_argument('-pr', '--projection', type=int, default=4, \
+parser.add_argument('-pr', '--projection', type=int, default=64, \
+                    help='number of projection dimentions for the patch encoder')
+parser.add_argument('-t', '--transformers', type=int, default=12, \
                     help='number of projection dimentions for the patch encoder')
 args = parser.parse_args()
 mirrored_strategy = tf.distribute.MirroredStrategy()
@@ -112,24 +115,23 @@ name = "epochs_"+str(args.epochs)+\
        "_attention_"+str(args.attention)+\
        "_Transformer"
 
-nsNet = NSModel.NSModelTransformerPinn(image_size = image_size,
-                                       patch_size=patch_size,
-                                       projection_dim_encoder=args.projection*12,
-                                       projection_dim_attention=args.projection,
-                                       num_heads=args.attention,
-                                       transformer_layers=1,
-          			       global_batch_size = args.batchsize,
-				       beta=[args.lambdacont,args.lambdamomx, args.lambdamomz])
-                                    
+nsNet = NSTransformer(image_size = image_size,
+                      filter_size =[16,16],
+                      patch_size=[args.patchheight,args.patchwidth],
+                      projection_dim_encoder=args.projection*12,
+                      projection_dim_attention=args.projection,
+                      num_heads=args.attention,
+                      transformer_layers=args.transformers)
+             #        global_batch_size = args.batchsize,
+	     #        beta=[args.lambdacont,args.lambdamomx, args.lambdamomz])
+                   
 
+nsNet.build(input_shape=(None,4,32,128,6))
+nsNet.summary()
 nsNet.compile(optimizer=keras.optimizers.Adam(learning_rate=args.learningrate),
 	      run_eagerly=True)
 
 #w = nsNet.initialize(model_name='./ViT/ViT-B_16.npz')
-w = nsNet.layers[0].get_weights()
-for item in w:
- print(w.shape)
-
 #nsCB=[]
 #if (args.reducelr):
 # nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
