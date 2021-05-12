@@ -64,13 +64,13 @@ masking=args.masking
 
 ##### Validation dataset #####
 ###############################
-#ds = Dataset(size=image_size, 
-#	     add_coordinates = 1)
-#
-#ds.set_type("validation")
-#ds.set_name("ellipse03")
-#X_val, Y_val = ds.load_dataset()
-#X_val , Y_val = extract_2d_patches(X_val,patch_size=patch_size,masking=0), extract_2d_patches(Y_val,patch_size=patch_size,masking=0)
+ds = Dataset(size=image_size, 
+	     add_coordinates = 1)
+
+ds.set_type("validation")
+ds.set_name("ellipse03")
+X_val, Y_val = ds.load_dataset()
+X_val , Y_val = extract_2d_patches(X_val,patch_size=patch_size,masking=0), extract_2d_patches(Y_val,patch_size=patch_size,masking=0)
 #X_val,Y_val = shuffle(X_val,Y_val)
 #print(X_val.shape)
 #
@@ -88,14 +88,14 @@ masking=args.masking
 ##### Training dataset #####
 ############################
 #
-#ds.set_type("train")
-#ellipses=["025","035","055","075","008","015","006","007","01","02"]
-#
-#e="005"
-#pathFile = "ellipse"+e
-#ds.set_name(pathFile)
-#X_train, Y_train =ds.load_dataset()
-#X_train , Y_train = extract_2d_patches(X_train,patch_size=patch_size,masking=args.masking), extract_2d_patches(Y_train,patch_size=patch_size, masking=0)
+ds.set_type("train")
+ellipses=["025"]#,"035","055","075","008","015","006","007","01","02"]
+
+e="005"
+pathFile = "ellipse"+e
+ds.set_name(pathFile)
+X_train, Y_train =ds.load_dataset()
+X_train , Y_train = extract_2d_patches(X_train,patch_size=patch_size,masking=args.masking), extract_2d_patches(Y_train,patch_size=patch_size, masking=0)
 #
 #
 #for i in ellipses:
@@ -117,6 +117,7 @@ name = "epochs_"+str(args.epochs)+\
 
 nsNet = NSTransformer(image_size = image_size,
                       filter_size =[16,16],
+	  	      sequence_length=196,
                       patch_size=[args.patchheight,args.patchwidth],
                       projection_dim_encoder=args.projection*12,
                       projection_dim_attention=args.projection,
@@ -130,30 +131,28 @@ nsNet.build(input_shape=(None,4,32,128,6))
 nsNet.summary()
 nsNet.set_weights('./ViT/ViT-B_16.npz')
 nsNet.compile(optimizer=keras.optimizers.Adam(learning_rate=args.learningrate),
+              loss='mse',
 	      run_eagerly=True)
 
+nsCB=[]
+if (args.reducelr):
+ nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
+						 factor=0.8,\
+						 min_delta=1e-3,\
+      						 patience=args.patience,
+						 min_lr=1e-7)
+      ]
 
+print("X train shape ", X_train.shape)
+print("Y train shape ",Y_train.shape)
+history = nsNet.fit(x=X_train,
+                    y=Y_train[:,:,:,:,0:4],
+                    batch_size=args.batchsize,
+                    validation_data=(X_val,Y_val),\
+                    initial_epoch=0, 
+                    epochs=args.epochs,\
+                    verbose=1, 
+               	    callbacks=nsCB,
+              	    shuffle=True)
 
-#w = nsNet.initialize(model_name='./ViT/ViT-B_16.npz')
-#nsCB=[]
-#if (args.reducelr):
-# nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
-#						 factor=0.8,\
-#						 min_delta=1e-3,\
-#      						 patience=args.patience,
-#						 min_lr=1e-7)
-#      ]
-#
-#print("X train shape ", X_train.shape)
-#print("Y train shape ",Y_train.shape)
-#history = nsNet.fit(x=X_train,
-#                    y=Y_train,
-#                    batch_size=args.batchsize,
-#                    validation_data=(X_val,Y_val),\
-#                    initial_epoch=0, 
-#                    epochs=args.epochs,\
-#                    verbose=1, 
-#               	    callbacks=nsCB,
-#              	    shuffle=True)
-#
-#plot.history(history,name=name)
+plot.history(history,name=name)

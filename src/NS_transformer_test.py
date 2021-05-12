@@ -144,6 +144,8 @@ class NSTransformer(keras.Model):
      
     t = self.transformer_layers
     wvit = np.load(vit)
+    projection = 9*t +2
+    pos_embedding = 9*t +4
 
     for i in range(self.transformer_layers):
      norm0=i
@@ -155,8 +157,6 @@ class NSTransformer(keras.Model):
      dropout1 = i+6*t
      add0 = i+7*t
      add1 =i +8*t
-     projection = add1+3
-     pos_embedding = add1+5
 
      w = []      
      w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_0/scale'])
@@ -193,18 +193,16 @@ class NSTransformer(keras.Model):
   
      self.layers[dense1].set_weights(w)
 
-     w.clear()
-     w.append(wvit['embedding/kernel'])
-     w.append(wvit['embedding/bias'])
+    w.clear()
+    w.append(wvit['embedding/kernel'])
+    w.append(wvit['embedding/bias'])
   
-     self.layers[projection].set_weights(w)
+    self.layers[projection].set_weights(w)
 
-     w.clear()
-     w.append(wvit['Transformer/posembed_input/pos_embedding'][0,0:self.sequence_length,:])
+    w.clear()
+    w.append(wvit['Transformer/posembed_input/pos_embedding'][0,0:self.sequence_length,:])
   
-     self.layers[pos_embedding].set_weights(w)
-
-
+    self.layers[pos_embedding].set_weights(w)
 
   def call(self, inputs):
  
@@ -231,6 +229,5 @@ class NSTransformer(keras.Model):
     x = self.MapReshape0(x)
     x = self.MapDeconv(x)
     x = self.MapReshape1(x)
-    print(x.shape)
 
     return x
