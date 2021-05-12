@@ -56,6 +56,7 @@ class NSTransformer(keras.Model):
                image_size=[64,256,6],
                filter_size=[16,16],
                patch_size = [32,128],
+               sequence_length = 196,
                projection_dim_encoder=768,
                projection_dim_attention=64,
                num_heads = 12,
@@ -67,6 +68,7 @@ class NSTransformer(keras.Model):
     self.image_size = image_size
     self.patch_size = patch_size
     self.filter_size = filter_size
+    self.sequence_length = sequence_length
 
     self.channelsInput = image_size[2]
     self.channelsOutput = 4
@@ -108,8 +110,8 @@ class NSTransformer(keras.Model):
     self.InitialReshape = keras.layers.Reshape((self.image_size[0],self.image_size[1],self.image_size[2]))
     self.InitialDeconv =keras.layers.Conv2DTranspose(filters=3,kernel_size=(49,193),strides=(1,1),padding="valid",name="Pre/Deconv")
     self.Projection = Projection(self.projection_dim_encoder,self.filter_size)
-    self.Reshape = keras.layers.Reshape((196,self.projection_dim_encoder))
-    self.PositionEmbedding = PositionEmbedding(196,self.projection_dim_encoder)
+    self.Reshape = keras.layers.Reshape((self.sequence_length,self.projection_dim_encoder))
+    self.PositionEmbedding = PositionEmbedding(self.sequence_length,self.projection_dim_encoder)
 
 
   def task(self):
@@ -149,7 +151,13 @@ class NSTransformer(keras.Model):
      attention = i+2*t
      dense0 = i+3*t
      dense1 = i+4*t
-     
+     dropout0 = i+5*t
+     dropout1 = i+6*t
+     add0 = i+7*t
+     add1 =i +8*t
+     projection = add1+3
+     pos_embedding = add1+5
+
      w = []      
      w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_0/scale'])
      w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_0/bias'])
@@ -163,8 +171,40 @@ class NSTransformer(keras.Model):
      self.layers[norm1].set_weights(w)
 
      w.clear()
-     w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_/scale'])
-     w.append(wvit['Transformer/encoderblock_'+str(i)+'/LayerNorm_2/bias'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/query/kernel'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/query/bias'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/key/kernel'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/key/bias'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/value/kernel'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/value/bias'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/out/kernel'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/out/bias'])
+     self.layers[attention].set_weights(w)
+     
+     w.clear()
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MlpBlock_3/Dense_0/kernel'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MlpBlock_3/Dense_0/bias'])
+  
+     self.layers[dense0].set_weights(w)
+
+     w.clear()
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MlpBlock_3/Dense_1/kernel'])
+     w.append(wvit['Transformer/encoderblock_'+str(i)+'/MlpBlock_3/Dense_1/bias'])
+  
+     self.layers[dense1].set_weights(w)
+
+     w.clear()
+     w.append(wvit['embedding/kernel'])
+     w.append(wvit['embedding/bias'])
+  
+     self.layers[projection].set_weights(w)
+
+     w.clear()
+     w.append(wvit['Transformer/posembed_input/pos_embedding'][0,0:self.sequence_length,:])
+  
+     self.layers[pos_embedding].set_weights(w)
+
+
 
   def call(self, inputs):
  
