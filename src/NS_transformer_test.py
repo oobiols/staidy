@@ -128,7 +128,7 @@ class NSTransformer(keras.Model):
  
         name = 'T/EB_'+str(i)+'/'
 
-        self.Norm0.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True,name=name+'Norm0'))
+        self.Norm0.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=False,name=name+'Norm0'))
         self.Attention.append(keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim_attention, dropout=0.1,trainable=False,name = name+'Attention'))
         self.Add0.append(keras.layers.Add(name=name+"Add0"))
         self.Norm1.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=False,name=name+"Norm1"))

@@ -66,11 +66,11 @@ masking=args.masking
 ###############################
 ds = Dataset(size=image_size, 
 	     add_coordinates = 1)
-
-ds.set_type("validation")
-ds.set_name("ellipse03")
-X_val, Y_val = ds.load_dataset()
-X_val , Y_val = extract_2d_patches(X_val,patch_size=patch_size,masking=0), extract_2d_patches(Y_val,patch_size=patch_size,masking=0)
+#
+#ds.set_type("validation")
+#ds.set_name("ellipse03")
+#X_val, Y_val = ds.load_dataset()
+#X_val , Y_val = extract_2d_patches(X_val,patch_size=patch_size,masking=0), extract_2d_patches(Y_val,patch_size=patch_size,masking=0)
 #X_val,Y_val = shuffle(X_val,Y_val)
 #print(X_val.shape)
 #
@@ -148,7 +148,7 @@ print("Y train shape ",Y_train.shape)
 history = nsNet.fit(x=X_train,
                     y=Y_train[:,:,:,:,0:4],
                     batch_size=args.batchsize,
-                    validation_data=(X_val,Y_val),\
+                    validation_data=(X_train,Y_train[:,:,:,:,0:4]),\
                     initial_epoch=0, 
                     epochs=args.epochs,\
                     verbose=1, 
