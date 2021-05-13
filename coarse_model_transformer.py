@@ -122,13 +122,13 @@ nsNet = NSTransformer(image_size = image_size,
                       projection_dim_encoder=args.projection*12,
                       projection_dim_attention=args.projection,
                       num_heads=args.attention,
-                      transformer_layers=args.transformers)
-             #        global_batch_size = args.batchsize,
-	     #        beta=[args.lambdacont,args.lambdamomx, args.lambdamomz])
+                      transformer_layers=args.transformers,
+                      global_batch_size = args.batchsize,
+	              beta=[args.lambdacont,args.lambdamomx, args.lambdamomz])
                    
 
-nsNet.build(input_shape=(None,4,32,128,6))
-nsNet.summary()
+nsNet.build(input_shape=[(None,4,32,128,4),(None,4,32,128,2)])
+#nsNet.summary()
 nsNet.set_weights('./ViT/ViT-B_16.npz')
 nsNet.compile(optimizer=keras.optimizers.Adam(learning_rate=args.learningrate),
               loss='mse',

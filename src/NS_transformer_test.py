@@ -282,9 +282,9 @@ class NSTransformer(NSModelPinn):
     inputs = data[0]
     labels = data[1]
 
-    uvpnu_input = inputs[:,:,:,0:4]
-    xz          = inputs[:,:,:,4:6]
-    uvpnu_labels = labels[:,:,:,0:4]
+    uvpnu_input = inputs[:,:,:,:,0:4]
+    xz          = inputs[:,:,:,:,4:6]
+    uvpnu_labels = labels[:,:,:,:,0:4]
 
     with tf.GradientTape(persistent=True) as tape0:
       # compute the data loss for u, v, p and pde losses for
