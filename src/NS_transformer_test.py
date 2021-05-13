@@ -277,6 +277,38 @@ class NSTransformer(NSModelPinn):
 
     return uMseGlobal, vMseGlobal, pMseGlobal, nuMseGlobal, pde0MseGlobal, pde1MseGlobal, pde2MseGlobal
 
+  def test_step(self, data):
+
+    inputs = data[0]
+    labels = data[1]
+
+    uvpnu_input = inputs[:,:,:,:,0:4]
+    xz          = inputs[:,:,:,:,4:6]
+    uvpnu_labels = labels[:,:,:,:,0:4]
+
+    uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
+        self.compute_data_pde_losses(uvpnu_input,uvpnu_labels,xz)
+      # replica's loss, divided by global batch size
+    data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
+
+    loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
+
+    #loss += tf.add_n(self.losses)
+    # track loss and mae
+    self.validMetrics['loss'].update_state(loss)
+    self.validMetrics['data_loss'].update_state(data_loss)
+    self.validMetrics['cont_loss'].update_state(contMse)
+    self.validMetrics['mom_x_loss'].update_state(momxMse)
+    self.validMetrics['mom_z_loss'].update_state(momzMse)
+    self.validMetrics['uMse'].update_state(uMse)
+    self.validMetrics['vMse'].update_state(vMse)
+    self.validMetrics['pMse'].update_state(pMse)
+    self.validMetrics['nuMse'].update_state(nuMse)
+
+    for key in self.validMetrics:
+      self.validStat[key] = self.validMetrics[key].result()
+    return self.validStat
+
   def train_step(self, data):
 
     inputs = data[0]
@@ -295,9 +327,6 @@ class NSTransformer(NSModelPinn):
       data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
 
       loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
-
-      loss += tf.add_n(self.losses)
-    # update gradients
     if self.saveGradStat:
       uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
       vMseGrad    = tape0.gradient(vMse,    self.trainable_variables)
@@ -333,36 +362,3 @@ class NSTransformer(NSModelPinn):
     for key in self.trainMetrics:
       self.trainStat[key] = self.trainMetrics[key].result()
     return self.trainStat
-
-
-  def test_step(self, data):
-
-    inputs = data[0]
-    labels = data[1]
-
-    uvpnu_input = inputs[:,:,:,:,0:4]
-    xz          = inputs[:,:,:,:,4:6]
-    uvpnu_labels = labels[:,:,:,:,0:4]
-
-    uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
-        self.compute_data_pde_losses(uvpnu_input,uvpnu_labels,xz)
-      # replica's loss, divided by global batch size
-    data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
-
-    loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
-
-    #loss += tf.add_n(self.losses)
-    # track loss and mae
-    self.validMetrics['loss'].update_state(loss)
-    self.validMetrics['data_loss'].update_state(data_loss)
-    self.validMetrics['cont_loss'].update_state(contMse)
-    self.validMetrics['mom_x_loss'].update_state(momxMse)
-    self.validMetrics['mom_z_loss'].update_state(momzMse)
-    self.validMetrics['uMse'].update_state(uMse)
-    self.validMetrics['vMse'].update_state(vMse)
-    self.validMetrics['pMse'].update_state(pMse)
-    self.validMetrics['nuMse'].update_state(nuMse)
-
-    for key in self.validMetrics:
-      self.validStat[key] = self.validMetrics[key].result()
-    return self.validStat
