@@ -338,15 +338,101 @@ class Dataset():
 class DatasetNoWarmup(Dataset):
   def __init__(self):
     super(DatasetNoWarmup, self).__init__(**kwargs)
+    self.add_coordinates=True
 
+  def __case_data(self,
+                 x_addrs, 
+                 y_addr):
 
-  def __get_coordinates(self,
-			data,
-			case):
-
+    x_train = []
+    y_train = []
   
-   coord_path   = "./" + data+"_data" + "/" + case + "/"
-   xyz_domain = np.loadtxt(coord_path+"xyz.txt")
-   xyz_geometry = np.loadtxt(coord_path+"xyz_geom.txt")
+    x_addr = x_addrs[0]
+    y_addr = y_addr[0]
+  
+    data_cell  = self.__single_sample(x_addr,"input")
+    
+    x_train.append(data_cell)
+  
+    data_cell = self.__single_sample(y_addr,"output")
+  
+    y_train.append(data_cell)
+    
+    return np.float16(np.asarray(x_train)), np.float16(np.asarray(y_train))
 
-   return xyz_domain, xyz_geometry
+  def __single_sample(self,
+                      addr,
+                      pos):
+   
+ 
+   if pos = "output":
+ 
+    Ux, Uy, p, nuTilda = self.__get_domain(addr)
+ 
+    Ux = self.__map_domain(Ux)
+    Uy = self.__map_domain(Uy)
+    p  = self.__map_domain(p)
+ 
+    Ux = Ux.reshape([Ux.shape[0], Ux.shape[1], 1])
+    Uy = Uy.reshape([Uy.shape[0], Uy.shape[1], 1])
+    p =  p.reshape( [p.shape[0],  p.shape[1],  1])
+ 
+    if (self.grid == "channel_flow"):
+ 
+      height = self.height
+      Ux_avg = Ux[int(height/2),0,0]
+      Uy_avg = Uy[int(height/2),0,0]
+      uavg = Ux_avg
+      nuTildaAvg = 1e-4
+  
+    elif (self.grid == "ellipse"):
+  
+      uavg = 0.6
+      nuTildaAvg = 1e-3
+  
+    Ux /= uavg
+    Uy /= uavg
+    p /= uavg*uavg
+  
+    data    = np.concatenate( (Ux, Uy) , axis=2)  
+    data    = np.concatenate( (data, p), axis=2)
+  
+    if (self.is_turb):
+     nuTilda = self.__map_domain(nuTilda)
+     nuTilda = nuTilda.reshape([nuTilda.shape[0], nuTilda.shape[1], 1])
+     nuTilda /= nuTildaAvg
+     data   = np.concatenate( ( data, nuTilda), axis=2) 
+  
+ 
+   elif pos = "input":
+   
+    Ux, Uy, _, _ = self.__get_domain(addr)
+ 
+    Ux = self.__map_domain(Ux)
+    Uy = self.__map_domain(Uy)
+ 
+    Ux = Ux.reshape([Ux.shape[0], Ux.shape[1], 1])
+    Uy = Uy.reshape([Uy.shape[0], Uy.shape[1], 1])
+  
+    x,z = self.xyz[:,0], self.xyz[:,2]
+    x,z = self.__map_domain(x), self.__map_domain(z)
+    x = x.reshape([x.shape[0], x.shape[1],1])
+    z = z.reshape([z.shape[0], z.shape[1],1])
+
+    x /= 500
+    z /= 500
+  
+    u = Ux[-1,-1,0]
+    v = Uy[-1,-1,0]
+    U = np.sqrt(u*u+v*v)
+    alpha = np.arctan(v/u)
+    alpha = alpha/np.pi*180
+    Re = np.full_like(x,fill_value=U)
+    alpha = np.full_like(x,fill_value=alpha)
+  
+    data    = np.concatenate( (x, z) , axis=2)  
+    data    = np.concatenate( (data, Re) , axis=2)  
+    data    = np.concatenate( (data, alpha) , axis=2)  
+  
+   return np.float16(data)
+ 
