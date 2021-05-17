@@ -63,7 +63,7 @@ class Dataset():
   x = h5f.get('x')
   x = np.asarray(x)
   y = h5f.get('y')
-  y = np.asarray(y)
+  y = np.asarray(y[:,:,:,0:4])
 
   x[:,:,:,3] = 1e-3*x[:,:,:,3]/1e-4
   y[:,:,:,3] = 1e-3*y[:,:,:,3]/1e-4
@@ -333,3 +333,20 @@ class Dataset():
     ret = arr.reshape( [self.height, self.width] )
 
   return ret
+
+
+class DatasetNoWarmup(Dataset):
+  def __init__(self):
+    super(DatasetNoWarmup, self).__init__(**kwargs)
+
+
+  def __get_coordinates(self,
+			data,
+			case):
+
+  
+   coord_path   = "./" + data+"_data" + "/" + case + "/"
+   xyz_domain = np.loadtxt(coord_path+"xyz.txt")
+   xyz_geometry = np.loadtxt(coord_path+"xyz_geom.txt")
+
+   return xyz_domain, xyz_geometry
