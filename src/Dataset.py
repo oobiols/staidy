@@ -32,12 +32,16 @@ class Dataset():
   self.channels     = size[2]
   self.is_turb      = is_turb
   self.add_coordinates = add_coordinates
+  if self.add_coordinates: self.channels = 6
   self.directory    = './h5_datasets/'
   self.dataset_name = 'coarse_grid'
   self.dataset_type = 'train'
   self.grid         = grid
   self.path         = self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'
   self.shape        = [None,self.height,self.width,self.channels]
+  self.shape_input = self.shape
+  self.shape_output = self.shape
+  
  def set_directory(self,
                    path='./h5_datasets/'):
   self.directory = path
@@ -95,8 +99,8 @@ class Dataset():
   y = np.append(y_1,y,axis=0)
 
   h5f = h5py.File(save_path+'joined_dataset.h5',"w")
-  h5f.create_dataset('x', data = x,compression="lzf",chunks=True, maxshape = self.shape)
-  h5f.create_dataset('y', data = y,compression="lzf", chunks=True, maxshape = self.shape)
+  h5f.create_dataset('x', data = x,compression="lzf",chunks=True, maxshape = self.shape_input)
+  h5f.create_dataset('y', data = y,compression="lzf", chunks=True, maxshape = self.shape_output)
   h5f.close() 
 
  def create_dataset(self,
@@ -119,9 +123,9 @@ class Dataset():
     print("case number is ", case)
 
     if self.add_coordinates:
-     self.xyz = self.__get_coordinates(self.dataset_type,case)
+     self.xyz = self.get_coordinates(self.dataset_type,case)
     #Reads the path addresses where the OpenFOAM data is stored
-    train_x_addrs, train_y_addr = self.__read_addrs(self.dataset_type, case)
+    train_x_addrs, train_y_addr = self.read_addrs(self.dataset_type, case)
     #Reads the primary variable values at each iteration of the OpenFOAM data and t 
     train_x, train_y = self.__case_data(train_x_addrs, train_y_addr)
   
@@ -131,8 +135,8 @@ class Dataset():
     if count==0:
 
      h5f = h5py.File(self.file_path,"w")
-     h5f.create_dataset('x', data = train_x,compression="gzip",compression_opts=5,chunks=True, maxshape = self.shape)
-     h5f.create_dataset('y', data = train_y,compression="gzip",compression_opts=5, chunks=True, maxshape = self.shape)
+     h5f.create_dataset('x', data = train_x,compression="gzip",compression_opts=5,chunks=True, maxshape = self.shape_input)
+     h5f.create_dataset('y', data = train_y,compression="gzip",compression_opts=5, chunks=True, maxshape = self.shape_output)
      h5f.close() 
 
     else:
@@ -153,7 +157,7 @@ class Dataset():
   return 
 
 
- def __get_coordinates(self,
+ def get_coordinates(self,
 			data,
 			case):
 
@@ -164,7 +168,7 @@ class Dataset():
   return xyz
 
 
- def __read_addrs(self,
+ def read_addrs(self,
                 data,  
                 case):
  
@@ -222,9 +226,9 @@ class Dataset():
 
   Ux, Uy, p, nuTilda = self.__get_domain(addr)
 
-  Ux = self.__map_domain(Ux)
-  Uy = self.__map_domain(Uy)
-  p  = self.__map_domain(p)
+  Ux = self.map_domain(Ux)
+  Uy = self.map_domain(Uy)
+  p  = self.map_domain(p)
 
   Ux = Ux.reshape([Ux.shape[0], Ux.shape[1], 1])
   Uy = Uy.reshape([Uy.shape[0], Uy.shape[1], 1])
@@ -251,14 +255,14 @@ class Dataset():
   data    = np.concatenate( (data, p), axis=2)
 
   if (self.is_turb):
-   nuTilda = self.__map_domain(nuTilda)
+   nuTilda = self.map_domain(nuTilda)
    nuTilda = nuTilda.reshape([nuTilda.shape[0], nuTilda.shape[1], 1])
    nuTilda /= nuTildaAvg
    data   = np.concatenate( ( data, nuTilda), axis=2) 
 
   if (self.add_coordinates):
     x,z = self.xyz[:,0], self.xyz[:,2]
-    x,z = self.__map_domain(x), self.__map_domain(z)
+    x,z = self.map_domain(x), self.map_domain(z)
     x = x.reshape([x.shape[0], x.shape[1],1])
     z = z.reshape([z.shape[0], z.shape[1],1])
 
@@ -285,7 +289,163 @@ class Dataset():
    return Ux, Uy, p, nuTilda
 
 
- def __map_domain(self, arr):
+ def convert_to_foam(self,arr):
+
+  p0 = arr[:,0,:,:,:]
+  p1 = arr[:,1,:,:,:]
+  p2 = arr[:,2,:,:,:]
+  p3 = arr[:,3,:,:,:]
+  
+  bottom = np.append(p0,p2,axis=1)
+  top = np.append(p1,p3,axis=1)
+  arr = np.append(bottom,top,axis=2)
+
+  Ux = arr[:,:,:,0]
+  Uz = arr[:,:,:,1]
+  p = arr[:,:,:,2]
+  nuTilda = arr[:,:,:,3]
+
+  Ux = self.unmap_domain(Ux)
+  Uz = self.unmap_domain(Uz)
+  p = self.unmap_domain(p)
+  nuTilda = self.unmap_domain(nuTilda)
+
+  Uy = np.full_like(Ux,fill_value=0)
+  self.vector_to_foam(Ux,Uy,Uz,"U")
+  self.pressure_to_foam(p,"p")
+  self.nuTilda_to_foam(nuTilda,"nuTilda")
+
+
+ def vector_to_foam(self,X,Y,Z,variable_name="U"):
+
+  Uavg = 0.6
+  n_samples = len(X)
+  for n in range(n_samples):
+
+   directory_path='./predicted_fields/'+str(n)+'/'
+   if not os.path.exists(directory_path):
+      os.makedirs(directory_path)
+
+   x = X[n] 
+   y = Y[n]
+   z = Z[n]
+
+   f = open(directory_path+variable_name, "w")
+   f.write("FoamFile\n{\n	version 	2.0;\n	format	ascii;\n  class volVectorField;\n	location	0;\n	object	U;\n}\n")
+   f.write("dimensions [0 1 -1 0 0 0 0];\n\n")
+   f.write("internalField\t nonuniform List<vector>\n" + str(x.shape[0]) + "\n(\n")
+   for j in range(0,x.shape[0]): 
+    f.write("("+repr(x[j]*Uavg)+" 0 "+repr(z[j]*Uavg)+")\n")
+   f.write(");\n")
+   f.write("boundaryField\n{\n")
+   f.write("\ntop\n{\n\ttype\t freestream;\n\tfreestreamValue\t uniform (0.6 0 0);\n}")
+   f.write("\nbottom\n{\n\ttype\t noSlip;\n}")
+   f.write("\nfrontAndBack\n{\n\ttype\t empty;\n}\n")
+   f.write("}\n")
+  
+
+ def pressure_to_foam(self,X, variable_name='p'):
+
+  Uavg = 0.6
+  n_samples = len(X)
+  for n in range(n_samples):
+
+   directory_path='./predicted_fields/'+str(n)+'/'
+   if not os.path.exists(directory_path):
+      os.makedirs(directory_path)
+
+   x = X[n] 
+
+   f = open(directory_path+variable_name, "w")
+   f.write("FoamFile\n{\n	version 	2.0;\n	format	ascii;\n  class volScalarField;\n	location	0;\n	object	p;\n}\n")
+   f.write("dimensions [0 2 -2 0 0 0 0];\n\n")
+   f.write("internalField\t nonuniform List<scalar>\n" + str(x.shape[0]) + "\n(\n")
+   for j in range(0,x.shape[0]): 
+    f.write(repr(x[j]*(Uavg*Uavg)) +"\n")
+   
+   f.write(");\n")
+   f.write("boundaryField\n{\n")
+   f.write("\ntop\n{\n\ttype\t freestream;\n\tfreestreamValue\t uniform 0;\n}")
+   f.write("\nbottom\n{\n\ttype\t zeroGradient;\n}")
+   f.write("\nfrontAndBack\n{\n\ttype\t empty;\n}\n")
+
+ def nuTilda_to_foam(self,X, variable_name='nuTilda'):
+
+  Uavg = 1e-4
+  n_samples = len(X)
+  for n in range(n_samples):
+
+   directory_path='./predicted_fields/'+str(n)+'/'
+   if not os.path.exists(directory_path):
+      os.makedirs(directory_path)
+
+   x = X[n] 
+
+   f = open(directory_path+variable_name, "w")
+   f.write("FoamFile\n{\n	version 	2.0;\n	format	ascii;\n  class volScalarField;\n	location	0;\n	object	nuTilda;\n}\n")
+   f.write("dimensions [0 2 -1 0 0 0 0];\n\n")
+   f.write("internalField\t nonuniform List<scalar>\n" + str(x.shape[0]) + "\n(\n")
+   for j in range(0,x.shape[0]): 
+    f.write(repr(x[j]*(Uavg)) +"\n")
+   
+   f.write(");\n")
+   f.write("boundaryField\n{\n")
+   f.write("\ntop\n{\n\ttype\t freestream;\n\tfreestreamValue\t uniform 3e-6;\n}")
+   f.write("\nbottom\n{\n\ttype\t fixedValue;\nvalue\t uniform 0;}")
+   f.write("\nfrontAndBack\n{\n\ttype\t empty;\n}\n")
+   f.write("}\n")
+
+ def unmap_domain(self,var):
+
+  n_samples = var.shape[0]
+  height = self.height
+  width = self.width
+  w = int(width/4)
+  variable_list = []
+
+  for n in range(n_samples):
+   
+    arr = var[n,:,:] 
+  
+    b_1 = np.empty([0, width], float)
+    b_2 = np.empty([0, width], float)
+    b_3 = np.empty([0, width], float)
+    b_4 = np.empty([0, width], float)
+
+    for i in range (0,height,4):
+
+      line1 = arr[i:i+4,3*w:4*w]
+      line1 = line1.reshape([1,width])
+      b_1 = np.append(b_1,line1,axis=0)
+
+      line2 = arr[i:i+4,2*w:3*w]
+      line2 = line2.reshape([1,width])
+      b_2 = np.append(b_2,line2,axis=0)
+      
+      line4 = arr[i:i+4,w:2*w]
+      line4 = np.flip(line4,axis=1)
+      line4 = line4.reshape([1,width])
+      b_4 = np.append(b_4,line4,axis=0)
+ 
+      line3 = arr[i:i+4,0:w]
+      line3 = np.flip(line3,axis=1)
+      line3 = line3.reshape([1,width])
+      b_3 = np.append(b_3,line3,axis=0)
+    
+    b_1 = b_1.reshape([height * w])
+    b_2 = b_2.reshape([height * w])
+    b_3 = b_3.reshape([height * w])
+    b_4 = b_4.reshape([height * w])
+
+    arr = np.append(b_1,b_2)
+    arr = np.append(arr,b_3)
+    arr = np.append(arr,b_4)
+
+    variable_list.append(arr)
+
+  return variable_list
+
+ def map_domain(self, arr):
 
   if self.grid=="ellipse":
      
@@ -336,9 +496,11 @@ class Dataset():
 
 
 class DatasetNoWarmup(Dataset):
-  def __init__(self):
+  def __init__(self,**kwargs):
     super(DatasetNoWarmup, self).__init__(**kwargs)
     self.add_coordinates=True
+    self.shape_input=[None,self.height,self.width,self.channels]
+    self.shape_output=[None,self.height,self.width,self.channels]
 
   def __case_data(self,
                  x_addrs, 
@@ -349,12 +511,12 @@ class DatasetNoWarmup(Dataset):
   
     x_addr = x_addrs[0]
     y_addr = y_addr[0]
-  
-    data_cell  = self.__single_sample(x_addr,"input")
+     
+    data_cell  = self.__single_sample(x_addr[0],"input")
     
     x_train.append(data_cell)
   
-    data_cell = self.__single_sample(y_addr,"output")
+    data_cell = self.__single_sample(y_addr[0],"output")
   
     y_train.append(data_cell)
     
@@ -364,14 +526,13 @@ class DatasetNoWarmup(Dataset):
                       addr,
                       pos):
    
+   if pos == "output":
  
-   if pos = "output":
+    Ux, Uy, p, nuTilda = self.__get_domain(addr,pos)
  
-    Ux, Uy, p, nuTilda = self.__get_domain(addr)
- 
-    Ux = self.__map_domain(Ux)
-    Uy = self.__map_domain(Uy)
-    p  = self.__map_domain(p)
+    Ux = self.map_domain(Ux)
+    Uy = self.map_domain(Uy)
+    p  = self.map_domain(p)
  
     Ux = Ux.reshape([Ux.shape[0], Ux.shape[1], 1])
     Uy = Uy.reshape([Uy.shape[0], Uy.shape[1], 1])
@@ -398,32 +559,24 @@ class DatasetNoWarmup(Dataset):
     data    = np.concatenate( (data, p), axis=2)
   
     if (self.is_turb):
-     nuTilda = self.__map_domain(nuTilda)
+     nuTilda = self.map_domain(nuTilda)
      nuTilda = nuTilda.reshape([nuTilda.shape[0], nuTilda.shape[1], 1])
      nuTilda /= nuTildaAvg
      data   = np.concatenate( ( data, nuTilda), axis=2) 
   
  
-   elif pos = "input":
+   elif pos == "input":
    
-    Ux, Uy, _, _ = self.__get_domain(addr)
+    u, v, _, _ = self.__get_domain(addr,pos)
  
-    Ux = self.__map_domain(Ux)
-    Uy = self.__map_domain(Uy)
- 
-    Ux = Ux.reshape([Ux.shape[0], Ux.shape[1], 1])
-    Uy = Uy.reshape([Uy.shape[0], Uy.shape[1], 1])
-  
     x,z = self.xyz[:,0], self.xyz[:,2]
-    x,z = self.__map_domain(x), self.__map_domain(z)
+    x,z = self.map_domain(x), self.map_domain(z)
     x = x.reshape([x.shape[0], x.shape[1],1])
     z = z.reshape([z.shape[0], z.shape[1],1])
 
     x /= 500
     z /= 500
   
-    u = Ux[-1,-1,0]
-    v = Uy[-1,-1,0]
     U = np.sqrt(u*u+v*v)
     alpha = np.arctan(v/u)
     alpha = alpha/np.pi*180
@@ -436,3 +589,89 @@ class DatasetNoWarmup(Dataset):
   
    return np.float16(data)
  
+  def __get_domain(self,
+                    addr, 
+		pos):
+
+
+   if pos =="output":
+
+    U = np.float16(Ofpp.parse_internal_field(addr+"/U"))
+    p = np.float16(Ofpp.parse_internal_field(addr+"/p"))
+ 
+    if (self.is_turb):
+     nuTilda     = np.float16(Ofpp.parse_internal_field(addr+"/nuTilda"))
+    else:
+     nuTilda = 0
+ 
+    Ux          = U[:,0]
+    Uy          = U[:,2]
+
+   elif pos=="input":
+
+    p = None
+    nuTilda = None
+    U = Ofpp.parse_boundary_field(addr+'/U')
+    U=U[b'top']
+    U=U[b'freestreamValue']
+    Ux = U[0]
+    Uy = U[2]
+
+   return Ux, Uy, p, nuTilda
+
+  def create_dataset(self,
+                    first_case=1,
+                    last_case=2):
+ 
+    self.directory_path =  self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'
+    self.file_path =  self.directory_path + self.dataset_name + '.h5'
+    if not os.path.exists(self.directory_path):
+      os.makedirs(self.directory_path)
+    
+    case_number = first_case
+    case_end    = last_case + 1
+  
+    count = 0
+  
+    while (case_number !=case_end) :
+
+     if (np.mod(case_number,10)!=0): 
+      case = "case_"+str(case_number)
+      print("case number is ", case)
+  
+      if self.add_coordinates:
+       self.xyz = self.get_coordinates(self.dataset_type,case)
+      #Reads the path addresses where the OpenFOAM data is stored
+      train_x_addrs, train_y_addr = self.read_addrs(self.dataset_type, case)
+      #Reads the primary variable values at each iteration of the OpenFOAM data and t 
+      train_x, train_y = self.__case_data(train_x_addrs, train_y_addr)
+    
+      print("x size ",train_x.shape)
+      print("y size ",train_y.shape)
+  
+      if count==0:
+  
+       h5f = h5py.File(self.file_path,"w")
+       h5f.create_dataset('x', data = train_x,compression="gzip",compression_opts=5,chunks=True, maxshape = self.shape_input)
+       h5f.create_dataset('y', data = train_y,compression="gzip",compression_opts=5, chunks=True, maxshape = self.shape_output)
+       h5f.close() 
+  
+      else:
+  
+       with h5py.File(self.file_path, 'a') as hf:
+  
+        hf["x"].resize((hf["x"].shape[0] + train_x.shape[0]), axis = 0)
+        hf["x"][-train_x.shape[0]:] = train_x
+  
+        hf["y"].resize((hf["y"].shape[0] + train_y.shape[0]), axis = 0)
+        hf["y"][-train_y.shape[0]:] = train_y
+         
+        hf.close()
+   
+     else:
+      print("No case ",case_number)
+  
+     case_number=case_number+1
+     count=count+1  
+  
+    return 

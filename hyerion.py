@@ -51,48 +51,13 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 
 size = [args.height,args.width,4]
 
-######
-##### Validation dataset #####
-###############################
-#ds = Dataset(size=size, 
-#	     add_coordinates = 1)
-#
-#ds.set_type("validation")
-#ds.set_name("ellipse03")
-#X_val, Y_val = ds.load_dataset()
-#
-#ds.set_type("train")
-#ds.set_name("ellipse045")
-#X, Y  = ds.load_dataset()
-#
-#X_val =np.append(X_val,X,axis=0)
-#Y_val = np.append(Y_val,Y,axis=0)
+ds = DatasetNoWarmup(size=size,
+		     add_coordinates=True)
 
-#ds.set_name("NACA0012")
-#X, Y  = ds.load_dataset()
-#
-#X_val =np.append(X_val,X,axis=0)
-#Y_val = np.append(Y_val,Y,axis=0)
-
-####
-#### Training dataset #####
-###########################
+ellipses = ["005","006","007","008","01","015","02","025","03","035","45"]
 
 
-#ds.set_type("train")
-#ellipses=["025","035","055","075","008","015","006","007","01","02"]
-#
-#e="005"
-#pathFile = "ellipse"+e
-#ds.set_name(pathFile)
-#X_train, Y_train =ds.load_dataset()
-#
-#for i in ellipses:
-# pathFile = "ellipse"+i
-# ds.set_name(pathFile)
-# X , Y = ds.load_dataset()
-# X_train , Y_train = np.append(X_train,X,axis=0) , np.append(Y_train,Y,axis=0)
-#
+
 
 if args.architecture == "deep":
  filters = [4,16,32,128]
