@@ -54,9 +54,17 @@ size = [args.height,args.width,4]
 ds = DatasetNoWarmup(size=size,
 		     add_coordinates=True)
 
-ellipses = ["005","006","007","008","01","015","02","025","03","035","45"]
+ellipses = ["006","007","008","01","015","02","025","03","035","45"]
+e="005"
+pathFile = "nwellipse"+e
+ds.set_name(pathFile)
+X, Y =ds.load_dataset()
 
-
+for i in ellipses:
+ pathFile = "nwellipse"+i
+ ds.set_name(pathFile)
+ x , y = ds.load_dataset()
+ X , Y = np.append(X,x,axis=0) , np.append(Y,y,axis=0)
 
 
 if args.architecture == "deep":
@@ -71,7 +79,7 @@ with mirrored_strategy.scope():
 
  if args.navierstokes==False:
 
-  nsNet = NSModel.NSModelSymmCNN(input_shape = (args.height,args.width,6),
+  nsNet = NSModel.NSModelSymmCNN(input_shape = (args.height,args.width,4),
                                filters=filters, 
  			       activation=args.activation,
                                kernel_size=(5,5), 
@@ -102,7 +110,6 @@ if (args.reducelr):
  nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.8, min_delta=1e-3,\
                                           patience=25, min_lr=1e-7)]
 
-nsNet.summary()
 #history = nsNet.fit(x=X_train,
 #                    y=Y_train,
 #                    batch_size=args.batchsize,
