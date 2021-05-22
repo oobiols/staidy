@@ -67,6 +67,9 @@ for i in ellipses:
  X , Y = np.append(X,x,axis=0) , np.append(Y,y,axis=0)
 
 
+Y = MinMaxScaler(Y)
+
+
 if args.architecture == "deep":
  filters = [4,16,32,128]
 else:
