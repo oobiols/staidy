@@ -23,14 +23,14 @@ class Dataset():
 '''
 
  def __init__ (self,
-              size= [32,128,4],
+              size= [64,256],
               grid = "ellipse",
               is_turb=1,
               add_coordinates = 0):
 
   self.height       = size[0]
   self.width        = size[1]
-  self.channels     = size[2]
+  self.channels     = 4
   self.is_turb      = is_turb
   self.add_coordinates = add_coordinates
   if self.add_coordinates: self.channels = 6
@@ -79,8 +79,7 @@ class Dataset():
    
   return (x,y)
 
- @staticmethod
- def extract_2d_patches(images,patch_size):
+ def extract_2d_patches(self,images,patch_size):
   
       nRowsImage = images.shape[1]
       nColumnsImage = images.shape[2]
@@ -111,12 +110,12 @@ class Dataset():
       return patches
 
 
- _ANS = extract_2d_patches.__func__()
 
  def load_data(self,cases,patches=0,patch_size=[32,128]):
 
-  X=[]
-  Y=[]
+  X=np.empty([0,self.height,self.width,self.channels],dtype=np.float16)
+  Y=np.empty([0,self.height,self.width,4],dtype=np.float16)
+
   for case in cases:
 
    self.file_path = self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'+case+'.h5'
@@ -134,15 +133,12 @@ class Dataset():
     x = x[:,:,:,0:4]
     y = y[:,:,:,0:4]
 
-   X.append(x)
-   Y.append(y)
-
-  X = np.asarray(X)
-  Y = np.asarray(Y)
+   X = np.append(X,x,axis=0)
+   Y = np.append(Y,y,axis=0)
 
   if patches: 
-      X = Dataset.extract_2d_patches(X,patch_size)
-      Y = Dataset.extract_2d_patches(Y,patch_size)
+      X = self.extract_2d_patches(X,patch_size)
+      Y = self.extract_2d_patches(Y,patch_size)
 
   return X,Y
 

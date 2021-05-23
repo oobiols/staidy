@@ -57,7 +57,7 @@ parser.add_argument('-t', '--transformers', type=int, default=12, \
 args = parser.parse_args()
 mirrored_strategy = tf.distribute.MirroredStrategy()
 
-image_size = [args.height,args.width,6]
+image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 masking=args.masking
 
@@ -66,13 +66,13 @@ ds = Dataset(size=image_size,
 	     add_coordinates = 1)
 
 ds.set_type("validation")
-cases=["ellipse03","ellipse045"]
+cases=["ellipse03"]
 X_val, Y_val = ds.load_data(cases,patches=1,patch_size=patch_size)
 
 ##### Training dataset #####
 ds.set_type("train")
-ellipses=["ellipse025","ellipse035","ellipse055","ellipse075","ellipse008","ellipse015","ellipse006","ellipse007","ellipse01","ellipse005"]
-X_train, Y_train = ds.load_data(ellipses,patches=1,patch_size=patch_size)
+#ellipses=["ellipse025","ellipse035","ellipse055","ellipse075","ellipse008","ellipse015","ellipse006","ellipse007","ellipse01","ellipse005"]
+#X_train, Y_train = ds.load_data(ellipses,patches=1,patch_size=patch_size)
 
 
 #name = "epochs_"+str(args.epochs)+\
@@ -86,21 +86,21 @@ X_train, Y_train = ds.load_data(ellipses,patches=1,patch_size=patch_size)
 #       "_Transformer"
 #
 #with mirrored_strategy.scope():
-# nsNet = NSTransformer(image_size = image_size,
-#                      filter_size =[16,16],
-#	  	      sequence_length=196,
-#                      patch_size=[args.patchheight,args.patchwidth],
-#                      projection_dim_encoder=args.projection*12,
-#                      projection_dim_attention=args.projection,
-#                      num_heads=args.attention,
-#                      transformer_layers=args.transformers,
-#                      global_batch_size = args.batchsize,
-#	              beta=[args.lambdacont,args.lambdamomx, args.lambdamomz])
-#
-# nsNet.build(input_shape=[(None,4,32,128,4),(None,4,32,128,2)])
-# optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
-# #optimizer = mixed_precision.LossScaleOptimizer(optimizer)
-# nsNet.compile(optimizer=optimizer,
+nsNet = NSTransformerPinn(image_size = image_size,
+                     filter_size =[16,16],
+        	      sequence_length=196,
+                     patch_size=[args.patchheight,args.patchwidth],
+                     projection_dim_encoder=args.projection*12,
+                     projection_dim_attention=args.projection,
+                     num_heads=args.attention,
+                     transformer_layers=args.transformers,
+                     global_batch_size = args.batchsize,
+                    beta=[args.lambdacont,args.lambdamomx, args.lambdamomz])
+
+nsNet.build(input_shape=[(None,4,32,128,4),(None,4,32,128,2)])
+optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
+#optimizer = mixed_precision.LossScaleOptimizer(optimizer)
+nsNet.compile(optimizer=optimizer,
 #	      run_eagerly=False)
 #
 #nsNet.set_weights('./ViT/ViT-B_16.npz')
