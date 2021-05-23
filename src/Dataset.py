@@ -3,6 +3,7 @@ import h5py
 import glob
 import openfoamparser as Ofpp
 import numpy as np
+import tensorflow as tf
 
 from settings import natural_keys
 
@@ -77,6 +78,73 @@ class Dataset():
    y = y[:,:,:,0:4]
    
   return (x,y)
+
+ @staticmethod
+ def extract_2d_patches(images,patch_size):
+  
+      nRowsImage = images.shape[1]
+      nColumnsImage = images.shape[2]
+      nPixelsImage = nRowsImage*nColumnsImage
+
+      nRowsPatch = patch_size[0]
+      nColumnsPatch = patch_size[1]
+      nPixelsPatch = nRowsPatch*nColumnsPatch
+
+      nPatchImage = (nPixelsImage // nPixelsPatch)
+
+      batch_size = tf.shape(images)[0]
+      channels = tf.shape(images)[3]
+
+      patches = tf.image.extract_patches(
+            images=images,
+            sizes=[1, patch_size[0], patch_size[1], 1],
+            strides=[1, patch_size[0], patch_size[1], 1],
+            rates=[1, 1, 1, 1],
+            padding="VALID",
+        )
+
+      patch_dims = patches.shape[-1]
+      patches = tf.reshape(patches, [batch_size, -1, patch_dims])
+      patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],patch_size[0], patch_size[1],channels])
+      patches = patches.numpy()
+
+      return patches
+
+
+ _ANS = extract_2d_patches.__func__()
+
+ def load_data(self,cases,patches=0,patch_size=[32,128]):
+
+  X=[]
+  Y=[]
+  for case in cases:
+
+   self.file_path = self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'+case+'.h5'
+   h5f = h5py.File(self.file_path,"r")
+
+   x = h5f.get('x')
+   x = np.asarray(x)
+   y = h5f.get('y')
+   y = np.asarray(y[:,:,:,0:4])
+
+   x[:,:,:,3] = 1e-3*x[:,:,:,3]/1e-4
+   y[:,:,:,3] = 1e-3*y[:,:,:,3]/1e-4
+
+   if self.add_coordinates==False:
+    x = x[:,:,:,0:4]
+    y = y[:,:,:,0:4]
+
+   X.append(x)
+   Y.append(y)
+
+  X = np.asarray(X)
+  Y = np.asarray(Y)
+
+  if patches: 
+      X = Dataset.extract_2d_patches(X,patch_size)
+      Y = Dataset.extract_2d_patches(Y,patch_size)
+
+  return X,Y
 
 
  def join_datasets(self, path_1,path_2):
