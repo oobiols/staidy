@@ -9,38 +9,6 @@ def mlp(x, hidden_units, dropout_rate):
         x = keras.layers.Dropout(dropout_rate)(x)
     return x
 
-def extract_2d_patches(images,patch_size=[32,128],masking=0):
-
-      nRowsImage = images.shape[1]
-      nColumnsImage = images.shape[2]
-      nPixelsImage = nRowsImage*nColumnsImage
-
-      nRowsPatch = patch_size[0]
-      nColumnsPatch = patch_size[1]
-      nPixelsPatch = nRowsPatch*nColumnsPatch
-
-      nPatchImage = (nPixelsImage // nPixelsPatch)
-
-      batch_size = tf.shape(images)[0]
-      channels = tf.shape(images)[3]
-
-      patches = tf.image.extract_patches(
-            images=images,
-            sizes=[1, patch_size[0], patch_size[1], 1],
-            strides=[1, patch_size[0], patch_size[1], 1],
-            rates=[1, 1, 1, 1],
-            padding="VALID",
-        )
-
-      patch_dims = patches.shape[-1]
-      patches = tf.reshape(patches, [batch_size, -1, patch_dims])
-      patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],patch_size[0], patch_size[1],channels])
-      patches = patches.numpy()
-
-      if(masking):
-       patches = corrupt_patches(patches,nPatchImage,masking)
-
-      return patches
 
 def corrupt_patches(patches,nPatchesImage,masking):
 
@@ -52,33 +20,15 @@ def corrupt_patches(patches,nPatchesImage,masking):
 
     return patches
 
-class Patches(keras.layers.Layer):
-    def __init__(self, patch_size):
-        super(Patches, self).__init__()
-        self.patch_size = patch_size
-
-    def call(self, images):
-        batch_size = tf.shape(images)[0]
-        patches = tf.image.extract_patches(
-            images=images,
-            sizes=[1, self.patch_size[0], self.patch_size[1], 1],
-            strides=[1, self.patch_size[0], self.patch_size[1], 1],
-            rates=[1, 1, 1, 1],
-            padding="VALID",
-        )
-        patch_dims = patches.shape[-1]
-        patches = tf.reshape(patches, [batch_size, -1, patch_dims])
-        return patches
-
 class PatchEncoder(keras.layers.Layer):
     def __init__(self, num_patches, projection_dim):
         super(PatchEncoder, self).__init__()
         self.num_patches = num_patches
-        self.projection = keras.layers.Dense(units=projection_dim,activation=tf.nn.gelu,trainable=False,name ="dense_projection")
+        self.projection = keras.layers.Dense(units=projection_dim,activation=tf.nn.leaky_relu,trainable=True,name ="dense_projection")
         self.position_embedding = keras.layers.Embedding(
                                                             input_dim=num_patches, 
                                                             output_dim=projection_dim,
-                                                            trainable=False,
+                                                            trainable=True,
                                                             name = "pos_embedding")
 
     def call(self, patch):
@@ -135,75 +85,27 @@ class VisionTransformerLayers(keras.layers.Layer):
     self.Patches = keras.layers.Reshape( (int(self.nPatchesImage), int(self.nPixelsPatch*self.channelsInput) ),name="reshape1" )
     self.EncodedPatches = PatchEncoder(self.nPatchesImage,self.projection_dim_encoder)
 
-    vitweights = np.load('ViT-B_16.npz')
     
     #transformer encoder
     for i in range(transformer_layers):
         
-        name_bias='Transformer/encoderblock_'+str(i)+'/LayerNorm_0/bias'
-        name_kernel='Transformer/encoderblock_'+str(i)+'/LayerNorm_0/scale'
-        w_bias = vitweights[name_bias]
-        w_bias_test = np.ones(w_bias.shape)
-        w_kernel = vitweights[name_kernel]
-        w_kernel_test = np.ones(w_kernel.shape)
-        w = []
-        w.append(w_kernel_test)
-        w.append(w_bias_test)
-
-        self.Norm0.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True,name="Trans/norm0",weights=w))
-        
-        names = []
-        names.append('Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/query/kernel')
-        names.append('Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/query/bias')
-        names.append('Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/key/kernel')
-        names.append('Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/key/bias')
-        names.append('Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/value/kernel')
-        names.append('Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/value/bias')
-        names.append('Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/out/kernel')
-        names.append('Transformer/encoderblock_'+str(i)+'/MultiHeadDotProductAttention_1/out/bias')
-   
-        self.w=[]
-        for n in names:
-          wr = vitweights[n]
-          w_test = np.full_like(wr,fill_value=3.0)
-          self.w.append(w_test)
-
+        self.Norm0.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True,name="Trans/norm0"))
         self.Attention.append(keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim_attention, dropout=0.1,trainable=False,name="Trans/Attention"))
         self.Add0.append(keras.layers.Add(name="Trans/Add0"))
         self.Norm1.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True,name="Trans/Norm1"))
-        self.Dense0.append(keras.layers.Dense(4*self.projection_dim_encoder,activation= tf.nn.gelu,trainable=False,name="Trans/Dense0"))
+        self.Dense0.append(keras.layers.Dense(4*self.projection_dim_encoder,activation= tf.nn.leaky_relu,trainable=True,name="Trans/Dense0"))
         self.Dropout0.append(keras.layers.Dropout(rate=0.1))
-        self.Dense1.append(keras.layers.Dense(self.projection_dim_encoder,activation= tf.nn.gelu,trainable=False,name="Trans/Dense1"))
+        self.Dense1.append(keras.layers.Dense(self.projection_dim_encoder,activation= tf.nn.leaky_relu,trainable=True,name="Trans/Dense1"))
         self.Dropout1.append(keras.layers.Dropout(rate=0.1))
         self.Add1.append(keras.layers.Add(name="Trans/Add1"))
 
     #map to steady state
     self.Flatten = keras.layers.Flatten()
-    self.MapDense = keras.layers.Dense(self.nPixelsPatch,activation=tf.nn.gelu,name="Map/Dense" )
+    self.MapDense = keras.layers.Dense(self.nPixelsPatch,activation=tf.nn.leaky_relu,name="Map/Dense" )
     self.MapReshape0 = keras.layers.Reshape( (self.nRowsPatch//2,self.nColumnsPatch//2,self.channelsOutput),name="Map/Reshape" )
     self.MapDeconv = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(4,4),activation='linear',name="Map/Conv")
     self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput),name="Map/Rehsape_Out" )
 
-#    self.Flatten = keras.layers.Flatten()
-#    self.Normalization_1 = keras.layers.LayerNormalization(epsilon=1e-6)
-#    self.AttentionOutput = keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim, dropout=0.1)
-#    self.Add_1 = keras.layers.Add()
-#    self.Normalization_2 = keras.layers.LayerNormalization(epsilon=1e-6)
-#    self.Dense_1 = keras.layers.Dense(self.projection_dim*2)
-#    self.Activation_1 = keras.layers.LeakyReLU(alpha=0.2)
-#    self.Dropout_1 = keras.layers.Dropout(rate=0.1)
-#    self.Dense_2= keras.layers.Dense(self.projection_dim)
-#    self.Activation_2 = keras.layers.LeakyReLU(alpha=0.2)
-#    self.Dropout_2 = keras.layers.Dropout(rate=0.1)
-#    self.Add_2 = keras.layers.Add()
-#
-#    self.Normalization_3 = keras.layers.LayerNormalization(epsilon=1e-6)
-#    self.Flatten = keras.layers.Flatten()
-#    self.Dense_3 = keras.layers.Dense(self.nPatchesImage*self.nPixelsPatch*self.channelsOutput)
-#    self.Activation_3 = keras.layers.LeakyReLU(alpha=0.2)
-#    self.Reshape = keras.layers.Reshape((int(self.nPatchesImage),int(self.nRowsPatch),int(self.nColumnsPatch),int(self.channelsOutput)))
-#    self.Conv2D_1 = keras.layers.Conv2D(filters=4,kernel_size = (5,5),padding = "same", strides = (1,1),activation='linear')
-#    self.Activation_4 = keras.layers.LeakyReLU(alpha=0.2)
   def call(self, inputs):
 
     patches = self.Patches(inputs)

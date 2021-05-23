@@ -618,13 +618,6 @@ class NSModelTransformerPinn(NSModelPinn):
 
 
 
-  def initialize(self,model_name='ViT-B_16.npz'):
-
-   weights = self.transformer.layers[5].get_weights()
-   
-   return weights
-
-
   def compute_data_pde_losses(self, uvpnu_input,uvpnu_labels,xz):
 
     mse = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
