@@ -90,7 +90,7 @@ class VisionTransformerLayers(keras.layers.Layer):
     for i in range(transformer_layers):
         
         self.Norm0.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True,name="Trans/norm0"))
-        self.Attention.append(keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim_attention, dropout=0.1,trainable=False,name="Trans/Attention"))
+        self.Attention.append(keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim_attention, dropout=0.1,trainable=True,name="Trans/Attention"))
         self.Add0.append(keras.layers.Add(name="Trans/Add0"))
         self.Norm1.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True,name="Trans/Norm1"))
         self.Dense0.append(keras.layers.Dense(4*self.projection_dim_encoder,activation= tf.nn.leaky_relu,trainable=True,name="Trans/Dense0"))
@@ -100,11 +100,13 @@ class VisionTransformerLayers(keras.layers.Layer):
         self.Add1.append(keras.layers.Add(name="Trans/Add1"))
 
     #map to steady state
-    self.Flatten = keras.layers.Flatten()
-    self.MapDense = keras.layers.Dense(self.nPixelsPatch,activation=tf.nn.leaky_relu,name="Map/Dense" )
-    self.MapReshape0 = keras.layers.Reshape( (self.nRowsPatch//2,self.nColumnsPatch//2,self.channelsOutput),name="Map/Reshape" )
-    self.MapDeconv = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(4,4),activation='linear',name="Map/Conv")
-    self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput),name="Map/Rehsape_Out" )
+    self.Flatten = keras.layers.Flatten(name="Task/Flatten")
+    self.MapDense = keras.layers.Dense(256,activation=tf.nn.leaky_relu,name="Map/Dense",trainable=True )
+    self.MapReshape0 = keras.layers.Reshape( (4,16,self.channelsOutput),name="Task/Reshape" )
+    self.MapDeconv = keras.layers.Conv2DTranspose(filters=4*self.channelsOutput,kernel_size=(3,3),padding="same",strides=(4,4),activation=tf.nn.leaky_relu,name="Task/Conv",trainable=True)
+    self.MapDeconv2 = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(3,3),padding="same",strides=(4,4),activation='linear',name="Task/Conv2",trainable=True)
+    #self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput),name="Map/Rehsape_Out" )
+
 
   def call(self, inputs):
 
@@ -114,7 +116,6 @@ class VisionTransformerLayers(keras.layers.Layer):
     for i in range(self.transformer_layers):
 
      x1 = self.Norm0[i](encoded_patches)
-     self.Attention[i].set_weights(self.w)
      attention = self.Attention[i](x1,x1)
      x2 = self.Add0[i]([attention,encoded_patches]) 
      x3 = self.Norm1[i](x2)
@@ -129,6 +130,7 @@ class VisionTransformerLayers(keras.layers.Layer):
     x = self.MapDense(x)
     x = self.MapReshape0(x)
     x = self.MapDeconv(x)
-    x = self.MapReshape1(x)
+    x = self.MapDeconv2(x)
+  #  x = self.MapReshape1(x)
     
     return x 

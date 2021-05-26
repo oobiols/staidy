@@ -92,7 +92,7 @@ class NSTransformer(NSModelPinn):
   def preprocess(self):
 
     self.InitialReshape = keras.layers.Reshape((self.image_size[0],self.image_size[1],self.image_size[2]))
-    self.InitialDeconv =keras.layers.Conv2DTranspose(filters=3,kernel_size=(49,193),strides=(1,1),padding="valid",name="Pre/Deconv")
+    self.InitialDeconv =keras.layers.Conv2DTranspose(filters=3,kernel_size=(49,193),strides=(1,1),padding="valid",name="Pre/Deconv",activation=tf.nn.leaky_relu,trainable=True)
     self.Projection = Projection(self.projection_dim_encoder,self.filter_size)
     self.Reshape = keras.layers.Reshape((self.sequence_length,self.projection_dim_encoder))
     self.PositionEmbedding = PositionEmbedding(self.sequence_length,self.projection_dim_encoder)
@@ -101,9 +101,9 @@ class NSTransformer(NSModelPinn):
   def task(self):
 
     self.Flatten = keras.layers.Flatten(name="Task/Flatten")
-    self.MapDense = keras.layers.Dense(16,activation=tf.nn.gelu,name="Task/Dense")
-    self.MapReshape0 = keras.layers.Reshape( (2,2,self.channelsOutput),name="Task/Reshape" )
-    self.MapDeconv = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(32,128),activation='linear',name="Task/Conv")
+    self.MapDense = keras.layers.Dense(64,activation=tf.nn.leaky_relu,name="Task/Dense")
+    self.MapReshape0 = keras.layers.Reshape( (4,4,self.channelsOutput),name="Task/Reshape" )
+    self.MapDeconv = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(5,5),padding="same",strides=(16,64),activation='linear',name="Task/Conv")
     self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput),name="Task/Reshape_Out" )
 
   def encoder(self):
@@ -112,13 +112,13 @@ class NSTransformer(NSModelPinn):
  
         name = 'T/EB_'+str(i)+'/'
 
-        self.Norm0.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=False,name=name+'Norm0'))
+        self.Norm0.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True,name=name+'Norm0'))
         self.Attention.append(keras.layers.MultiHeadAttention(num_heads=self.num_heads, key_dim=self.projection_dim_attention, dropout=0.1,trainable=False,name = name+'Attention'))
         self.Add0.append(keras.layers.Add(name=name+"Add0"))
-        self.Norm1.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=False,name=name+"Norm1"))
-        self.Dense0.append(keras.layers.Dense(4*self.projection_dim_encoder,activation= tf.nn.gelu,trainable=False,name=name+"Dense0"))
+        self.Norm1.append(keras.layers.LayerNormalization(epsilon=1e-6,trainable=True,name=name+"Norm1"))
+        self.Dense0.append(keras.layers.Dense(4*self.projection_dim_encoder,activation= tf.nn.leaky_relu,trainable=False,name=name+"Dense0"))
         self.Dropout0.append(keras.layers.Dropout(rate=0.1,name=name+'Dropout0'))
-        self.Dense1.append(keras.layers.Dense(self.projection_dim_encoder,activation= tf.nn.gelu,trainable=False,name=name+"Dense1"))
+        self.Dense1.append(keras.layers.Dense(self.projection_dim_encoder,activation= tf.nn.leaky_relu,trainable=False,name=name+"Dense1"))
         self.Dropout1.append(keras.layers.Dropout(rate=0.1,name=name+'Dropout1'))
         self.Add1.append(keras.layers.Add(name=name+"Add1"))
 

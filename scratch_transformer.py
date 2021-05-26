@@ -65,9 +65,9 @@ masking=args.masking
 ds = Dataset(size=image_size, 
 	     add_coordinates = 1)
 
-#ds.set_type("validation")
-#cases=["ellipse03"]
-#X_val, Y_val = ds.load_data(cases,patches=1,patch_size=patch_size)
+ds.set_type("validation")
+cases=["ellipse03"]
+X_val, Y_val = ds.load_data(cases,patches=0)
 
 ##### Training dataset #####
 #ds.set_type("train")
@@ -95,16 +95,15 @@ nsNet =  NSModelTransformerPinn(image_size = [args.height,args.width,6],
                           global_batch_size = args.batchsize,
                           beta=[args.lambdacont,args.lambdamomx, args.lambdamomz])
 
-nsNet.build(input_shape=(None,4,32,128,6))
-nsNet.summary()
-#optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
-#optimizer = mixed_precision.LossScaleOptimizer(optimizer)
-#nsNet.compile(optimizer=optimizer,
-#	      run_eagerly=False)
+#nsNet.build(input_shape=([None,64,256,4],[None,64,256,2]))
+#nsNet.summary()
+optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
+nsNet.compile(optimizer=optimizer,
+	      run_eagerly=False,
+		loss="mse")
 #
-#nsNet.set_weights('./ViT/ViT-B_16.npz')
 #
-#nsCB=[]
+nsCB=[]
 #if (args.reducelr):
 # nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
 #						 factor=0.8,\
@@ -116,15 +115,15 @@ nsNet.summary()
 #print("X train shape ", X_train.shape)
 #print("Y train shape ",Y_train.shape)
 #print("-------")
-#history = nsNet.fit(x=X_train,
-#                    y=Y_train,
-#                    batch_size=args.batchsize,
-#                    validation_data=(X_val,Y_val),\
-#                    initial_epoch=0, 
-#                    epochs=args.epochs,\
-#                    verbose=1, 
-#               	    callbacks=nsCB,
-#              	    shuffle=True)
-#
+history = nsNet.fit(x=X_val,
+                    y=Y_val,
+                    batch_size=args.batchsize,
+                    validation_split=0.12,\
+                    initial_epoch=0, 
+                    epochs=args.epochs,\
+                    verbose=1, 
+               	    callbacks=nsCB,
+              	    shuffle=True)
+
 #plot.history(history,name=name)
 #nsNet.save('./models/'+name)
