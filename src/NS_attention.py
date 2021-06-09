@@ -142,11 +142,12 @@ class NSAttention(NSModelPinn):
     high_res_pred = self.res_block[5](y2)
 
 
-    low_res_pred = tf.image.resize(high_res_pred,
-                                    size = self.LR_size,
-                                    method='bilinear',
-                                    preserve_aspect_ratio = True)
+    ##low_res_pred = tf.image.resize(high_res_pred,
+    #                                size = self.LR_size,
+    #                                method='bilinear',
+    #                                preserve_aspect_ratio = True)
 
+    low_res_pred = self.downsample(high_res_pred)
     diff = tf.math.square(low_res_pred-low_res_true)
 
     query = self.extractor(diff)
@@ -274,10 +275,11 @@ class NSAttention(NSModelPinn):
     high_res_true = inputs[:,:,:,0:4]
     high_res_xz = inputs[:,:,:,4:6]
 
-    low_res_true = tf.image.resize( high_res_true,
-                                    size=self.LR_size,
-                                    method="bilinear",
-                                    preserve_aspect_ratio=True)
+    #low_res_true = tf.image.resize( high_res_true,
+    #                                size=self.LR_size,
+    #                                method="bilinear",
+    #                                preserve_aspect_ratio=True)
+    low_res_true = tf.keras.layers.AveragePooling2D(pool_size=(self.f,self.f),strides=(self.f,self.f),padding="same")(high_res_true)
 
     with tf.GradientTape(persistent=True) as tape0:
       # compute the data loss for u, v, p and pde losses for

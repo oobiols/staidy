@@ -114,7 +114,7 @@ class Dataset():
  def load_data(self,cases,patches=0,patch_size=[32,128]):
 
   X=np.empty([0,self.height,self.width,self.channels],dtype=np.float16)
-  Y=np.empty([0,self.height,self.width,4],dtype=np.float16)
+  Y=np.empty([0,self.height,self.width,self.channels],dtype=np.float16)
 
   for case in cases:
 
@@ -124,7 +124,7 @@ class Dataset():
    x = h5f.get('x')
    x = np.asarray(x)
    y = h5f.get('y')
-   y = np.asarray(y[:,:,:,0:4])
+   y = np.asarray(y)
 
    x[:,:,:,3] = 1e-3*x[:,:,:,3]/1e-4
    y[:,:,:,3] = 1e-3*y[:,:,:,3]/1e-4
@@ -140,7 +140,8 @@ class Dataset():
       X = self.extract_2d_patches(X,patch_size)
       Y = self.extract_2d_patches(Y,patch_size)
 
-  return X,Y
+  n=500
+  return X[0:n],Y[0:n]
 
 
  def join_datasets(self, path_1,path_2):

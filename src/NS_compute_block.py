@@ -105,7 +105,7 @@ class ConvolutionDeconvolutionLayers(keras.layers.Layer):
                                               kernel_size = kernel_size,\
                                               padding = "same",\
                                               strides = strides,\
-					      activation = 'linear',
+					      activation = activation,
                                               kernel_regularizer=keras.regularizers.l2(reg[i])
                                               )
                          )

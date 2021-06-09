@@ -70,7 +70,7 @@ ds.set_type("validation")
 cases=["ellipse03"]
 _ , Y_train = ds.load_data(cases,patches=0)
 X_train = Y_train
-
+print(X_train.shape)
 ##### Training dataset #####
 #ds.set_type("train")
 #ellipses=["ellipse025","ellipse035","ellipse055","ellipse075","ellipse008","ellipse015","ellipse006","ellipse007","ellipse01","ellipse005"]
@@ -98,20 +98,20 @@ nsNet =  NSAttention(image_size = [args.height,args.width,6],
 optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
 nsNet.compile(optimizer=optimizer,
 	      run_eagerly=False)
-#nsCB=[]
-
-
-#if (args.reducelr):
-# nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
-#						 factor=0.8,\
-#						 min_delta=1e-3,\
-#      						 patience=args.patience,
-#						 min_lr=1e-7)
-#      ]
+nsCB=[]
 #
-print("X train shape ", X_train.shape)
-#print("Y train shape ",Y_train.shape)
-#print("-------")
+#
+##if (args.reducelr):
+## nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
+##						 factor=0.8,\
+##						 min_delta=1e-3,\
+##      						 patience=args.patience,
+##						 min_lr=1e-7)
+##      ]
+##
+#print("X train shape ", X_train.shape)
+##print("Y train shape ",Y_train.shape)
+##print("-------")
 history = nsNet.fit(x=X_train,
                     y=Y_train,
                     batch_size=args.batchsize,
@@ -122,5 +122,5 @@ history = nsNet.fit(x=X_train,
                	    callbacks=nsCB,
               	    shuffle=True)
 
-plot.history(history,name=name)
-nsNet.save('./models/'+name)
+#plot.history(history,name=name)
+#nsNet.save('./models/'+name)
