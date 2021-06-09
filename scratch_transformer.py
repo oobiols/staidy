@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from NS_transformer import *
+from NS_attention import *
 from NS_model import  NSModelTransformerPinn
 from data_generator import DataGenerator, SimpleGenerator
 from Dataset import Dataset
@@ -67,7 +68,8 @@ ds = Dataset(size=image_size,
 
 ds.set_type("validation")
 cases=["ellipse03"]
-X_val, Y_val = ds.load_data(cases,patches=0)
+_ , Y_train = ds.load_data(cases,patches=0)
+X_train = Y_train
 
 ##### Training dataset #####
 #ds.set_type("train")
@@ -86,24 +88,19 @@ X_val, Y_val = ds.load_data(cases,patches=0)
 #       "_Transformer"
 #
 #with mirrored_strategy.scope():
-nsNet =  NSModelTransformerPinn(image_size = [args.height,args.width,6],
-                          patch_size=[args.patchheight,args.patchwidth],
-                          projection_dim_encoder=args.projection,
-                          projection_dim_attention=args.projection,
-                          num_heads=args.attention,
-                          transformer_layers=args.transformers,
-                          global_batch_size = args.batchsize,
-                          beta=[args.lambdacont,args.lambdamomx, args.lambdamomz])
+factor = 16
+f = int(np.sqrt(factor))
+nsNet =  NSAttention(image_size = [args.height,args.width,6],
+                     factor = f,
+                     query_dimension=100,
+                     value_dimension=100)
 
-#nsNet.build(input_shape=([None,64,256,4],[None,64,256,2]))
-#nsNet.summary()
 optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
 nsNet.compile(optimizer=optimizer,
-	      run_eagerly=False,
-		loss="mse")
-#
-#
-nsCB=[]
+	      run_eagerly=False)
+#nsCB=[]
+
+
 #if (args.reducelr):
 # nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
 #						 factor=0.8,\
@@ -112,11 +109,11 @@ nsCB=[]
 #						 min_lr=1e-7)
 #      ]
 #
-#print("X train shape ", X_train.shape)
+print("X train shape ", X_train.shape)
 #print("Y train shape ",Y_train.shape)
 #print("-------")
-history = nsNet.fit(x=X_val,
-                    y=Y_val,
+history = nsNet.fit(x=X_train,
+                    y=Y_train,
                     batch_size=args.batchsize,
                     validation_split=0.12,\
                     initial_epoch=0, 
@@ -125,5 +122,5 @@ history = nsNet.fit(x=X_val,
                	    callbacks=nsCB,
               	    shuffle=True)
 
-#plot.history(history,name=name)
-#nsNet.save('./models/'+name)
+plot.history(history,name=name)
+nsNet.save('./models/'+name)

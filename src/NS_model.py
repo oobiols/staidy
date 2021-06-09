@@ -627,141 +627,142 @@ class NSModelTransformerPinn(NSModelPinn):
       with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(xz)
         flowPred = self([uvpnu_input,xz])
-        u_pred       = flowPred[:,:,:,:,0]
-        v_pred       = flowPred[:,:,:,:,1]
-        p_pred       = flowPred[:,:,:,:,2]
-        nu_pred       = flowPred[:,:,:,:,3]
+        u_pred       = flowPred[:,:,:,0]
+#        v_pred       = flowPred[:,:,:,1]
+#        p_pred       = flowPred[:,:,:,2]
+#        nu_pred       = flowPred[:,:,:,3]
+#
+#      # 1st order derivatives
+#      u_grad   = tape1.gradient(u_pred, xz)
+#      v_grad   = tape1.gradient(v_pred, xz)
+#      p_grad   = tape1.gradient(p_pred, xz)
+#      u_x, u_z = u_grad[:,:,:,0], u_grad[:,:,:,1]
+#      v_x, v_z = v_grad[:,:,:,0], v_grad[:,:,:,1]
+#      p_x, p_z = p_grad[:,:,:,0], p_grad[:,:,:,1]
+#      del tape1
+#    # 2nd order derivatives
+#    u_xx = tape2.gradient(u_x, xz)[:,:,:,0]
+#    u_zz = tape2.gradient(u_z, xz)[:,:,:,1]
+#    v_xx = tape2.gradient(v_x, xz)[:,:,:,0]
+#    v_zz = tape2.gradient(v_z, xz)[:,:,:,1]
+#    del tape2
 
-      # 1st order derivatives
-      u_grad   = tape1.gradient(u_pred, xz)
-      v_grad   = tape1.gradient(v_pred, xz)
-      p_grad   = tape1.gradient(p_pred, xz)
-      u_x, u_z = u_grad[:,:,:,:,0], u_grad[:,:,:,:,1]
-      v_x, v_z = v_grad[:,:,:,:,0], v_grad[:,:,:,:,1]
-      p_x, p_z = p_grad[:,:,:,:,0], p_grad[:,:,:,:,1]
-      del tape1
-    # 2nd order derivatives
-    u_xx = tape2.gradient(u_x, xz)[:,:,:,:,0]
-    u_zz = tape2.gradient(u_z, xz)[:,:,:,:,1]
-    v_xx = tape2.gradient(v_x, xz)[:,:,:,:,0]
-    v_zz = tape2.gradient(v_z, xz)[:,:,:,:,1]
-    del tape2
-
-
-    uMse = mse(u_pred,uvpnu_labels[:,:,:,:,0]) 
+    u_pred = tf.reshape(u_pred,[u_pred.shape[0],u_pred.shape[1],u_pred.shape[2],1])
+    u_pred_lr = tf.image.resize(u_pred,[64,256],method="bicubic")
+    uMse = mse(u_pred_lr,uvpnu_labels[:,:,:,0]) 
     uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
-    vMse    = mse(v_pred,uvpnu_labels[:,:,:,:,1])
-    vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
-      
-    pMse    = mse(p_pred,uvpnu_labels[:,:,:,:,2])
-    pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
-    
-    nuMse    = mse(nu_pred,uvpnu_labels[:,:,:,:,3])
-    nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
+ #   vMse    = mse(v_pred,uvpnu_labels[:,:,:,1])
+ #   vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
+ #     
+ #   pMse    = mse(p_pred,uvpnu_labels[:,:,:,2])
+ #   pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
+ #   
+ #   nuMse    = mse(nu_pred,uvpnu_labels[:,:,:,3])
+ #   nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
-    # pde error, 0 continuity, 1-2 NS
-    pde0    = u_x + v_z
-    z = tf.zeros(tf.shape(pde0),dtype=tf.float32)
-    pde0Mse    = mse(pde0,z)
-    pde0MseGlobal = tf.nn.compute_average_loss(pde0Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
+ #   # pde error, 0 continuity, 1-2 NS
+ #   pde0    = u_x + v_z
+ #   z = tf.zeros(tf.shape(pde0),dtype=tf.float32)
+ #   pde0Mse    = mse(pde0,z)
+ #   pde0MseGlobal = tf.nn.compute_average_loss(pde0Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
-    pde1    = u_pred*u_x + v_pred*u_z + p_x - (0.01+ nu_pred)*(1/6000)*(u_xx + u_zz)
-    pde1Mse    = mse(pde1,z)
-    pde1MseGlobal = tf.nn.compute_average_loss(pde1Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
+ #   pde1    = u_pred*u_x + v_pred*u_z + p_x - (0.01+ nu_pred)*(1/6000)*(u_xx + u_zz)
+ #   pde1Mse    = mse(pde1,z)
+ #   pde1MseGlobal = tf.nn.compute_average_loss(pde1Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
-    pde2    = u_pred*v_x + v_pred*v_z + p_z - (0.01 + nu_pred)*(1/6000)*(v_xx + v_zz)
-    pde2Mse    = mse(pde2,z)
-    pde2MseGlobal = tf.nn.compute_average_loss(pde2Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
+ #   pde2    = u_pred*v_x + v_pred*v_z + p_z - (0.01 + nu_pred)*(1/6000)*(v_xx + v_zz)
+ #   pde2Mse    = mse(pde2,z)
+ #   pde2MseGlobal = tf.nn.compute_average_loss(pde2Mse, global_batch_size=self.global_batch_size*self.nPatchesImage*self.nRowsPatch)
 
-    return uMseGlobal, vMseGlobal, pMseGlobal, nuMseGlobal, pde0MseGlobal, pde1MseGlobal, pde2MseGlobal
+    return uMseGlobal, 0.0, 0.0 , 0.0 ,0.0,0.0,0.0#vMseGlobal, pMseGlobal, nuMseGlobal, pde0MseGlobal, pde1MseGlobal, pde2MseGlobal
 
-#  def train_step(self, data):
-#
-#    inputs = data[0]
-#    labels = data[1]
-#
-#    uvpnu_input = inputs[:,:,:,:,0:4]
-#    xz          = inputs[:,:,:,:,4:6]
-#    uvpnu_labels = labels[:,:,:,:,0:4]
-#
-#    with tf.GradientTape(persistent=True) as tape0:
-#      # compute the data loss for u, v, p and pde losses for
-#      # continuity (0) and NS (1-2)
-#      uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
-#        self.compute_data_pde_losses(uvpnu_input,uvpnu_labels,xz)
-#      # replica's loss, divided by global batch size
-#      data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
-#
-#      loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
-#
-##      loss += tf.add_n(self.losses)
-#    # update gradients
-#    if self.saveGradStat:
-#      uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
-#      vMseGrad    = tape0.gradient(vMse,    self.trainable_variables)
-#      pMseGrad    = tape0.gradient(pMse,    self.trainable_variables)
-#      pdeMse0Grad = tape0.gradient(pdeMse0, self.trainable_variables)
-#      pdeMse1Grad = tape0.gradient(pdeMse1, self.trainable_variables)
-#      pdeMse2Grad = tape0.gradient(pdeMse2, self.trainable_variables)
-#    lossGrad = tape0.gradient(loss, self.trainable_variables)
-#    del tape0
-#
-#    # ---- update parameters ---- #
-#    self.optimizer.apply_gradients(zip(lossGrad, self.trainable_variables))
-#
-#    # ---- update metrics and statistics ---- #
-#    # track loss and mae
-#    self.trainMetrics['loss'].update_state(loss)
-#    self.trainMetrics['data_loss'].update_state(data_loss)
-#    self.trainMetrics['cont_loss'].update_state(contMse)
-#    self.trainMetrics['mom_x_loss'].update_state(momxMse)
-#    self.trainMetrics['mom_z_loss'].update_state(momzMse)
-#    self.trainMetrics['uMse'].update_state(uMse)
-#    self.trainMetrics['vMse'].update_state(vMse)
-#    self.trainMetrics['pMse'].update_state(pMse)
-#    self.trainMetrics['nuMse'].update_state(nuMse)
-#    # track gradients coefficients
-#    if self.saveGradStat:
-#      self.record_layer_gradient(uMseGrad, 'u_')
-#      self.record_layer_gradient(vMseGrad, 'v_')
-#      self.record_layer_gradient(pMseGrad, 'p_')
-#      self.record_layer_gradient(pdeMse0Grad, 'pde0_')
-#      self.record_layer_gradient(pdeMse1Grad, 'pde1_')
-#      self.record_layer_gradient(pdeMse2Grad, 'pde2_')
-#    for key in self.trainMetrics:
-#      self.trainStat[key] = self.trainMetrics[key].result()
-#    return self.trainStat
-#
-#
-#  def test_step(self, data):
-#
-#    inputs = data[0]
-#    labels = data[1]
-#
-#    uvpnu_input = inputs[:,:,:,:,0:4]
-#    xz          = inputs[:,:,:,:,4:6]
-#    uvpnu_labels = labels[:,:,:,:,0:4]
-#
-#    uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
-#        self.compute_data_pde_losses(uvpnu_input,uvpnu_labels,xz)
-#      # replica's loss, divided by global batch size
-#    data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
-#
-#    loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
-#
-#    #loss += tf.add_n(self.losses)
-#    # track loss and mae
-#    self.validMetrics['loss'].update_state(loss)
-#    self.validMetrics['data_loss'].update_state(data_loss)
-#    self.validMetrics['cont_loss'].update_state(contMse)
-#    self.validMetrics['mom_x_loss'].update_state(momxMse)
-#    self.validMetrics['mom_z_loss'].update_state(momzMse)
-#    self.validMetrics['uMse'].update_state(uMse)
-#    self.validMetrics['vMse'].update_state(vMse)
-#    self.validMetrics['pMse'].update_state(pMse)
-#    self.validMetrics['nuMse'].update_state(nuMse)
-#
-#    for key in self.validMetrics:
-#      self.validStat[key] = self.validMetrics[key].result()
-#    return self.validStat
+  def train_step(self, data):
+
+    inputs = data[0]
+    labels = data[1]
+
+    uvpnu_input = inputs[:,:,:,0:4]
+    xz          = inputs[:,:,:,4:6]
+    uvpnu_labels = labels
+
+    with tf.GradientTape(persistent=True) as tape0:
+      # compute the data loss for u, v, p and pde losses for
+      # continuity (0) and NS (1-2)
+      uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
+        self.compute_data_pde_losses(uvpnu_input,uvpnu_labels,xz)
+      # replica's loss, divided by global batch size
+      data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
+
+      loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
+
+#      loss += tf.add_n(self.losses)
+    # update gradients
+    if self.saveGradStat:
+      uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
+      vMseGrad    = tape0.gradient(vMse,    self.trainable_variables)
+      pMseGrad    = tape0.gradient(pMse,    self.trainable_variables)
+      pdeMse0Grad = tape0.gradient(pdeMse0, self.trainable_variables)
+      pdeMse1Grad = tape0.gradient(pdeMse1, self.trainable_variables)
+      pdeMse2Grad = tape0.gradient(pdeMse2, self.trainable_variables)
+    lossGrad = tape0.gradient(loss, self.trainable_variables)
+    del tape0
+
+    # ---- update parameters ---- #
+    self.optimizer.apply_gradients(zip(lossGrad, self.trainable_variables))
+
+    # ---- update metrics and statistics ---- #
+    # track loss and mae
+    self.trainMetrics['loss'].update_state(loss)
+    self.trainMetrics['data_loss'].update_state(data_loss)
+    self.trainMetrics['cont_loss'].update_state(contMse)
+    self.trainMetrics['mom_x_loss'].update_state(momxMse)
+    self.trainMetrics['mom_z_loss'].update_state(momzMse)
+    self.trainMetrics['uMse'].update_state(uMse)
+    self.trainMetrics['vMse'].update_state(vMse)
+    self.trainMetrics['pMse'].update_state(pMse)
+    self.trainMetrics['nuMse'].update_state(nuMse)
+    # track gradients coefficients
+    if self.saveGradStat:
+      self.record_layer_gradient(uMseGrad, 'u_')
+      self.record_layer_gradient(vMseGrad, 'v_')
+      self.record_layer_gradient(pMseGrad, 'p_')
+      self.record_layer_gradient(pdeMse0Grad, 'pde0_')
+      self.record_layer_gradient(pdeMse1Grad, 'pde1_')
+      self.record_layer_gradient(pdeMse2Grad, 'pde2_')
+    for key in self.trainMetrics:
+      self.trainStat[key] = self.trainMetrics[key].result()
+    return self.trainStat
+
+
+  def test_step(self, data):
+
+    inputs = data[0]
+    labels = data[1]
+
+    uvpnu_input = inputs[:,:,:,0:4]
+    xz          = inputs[:,:,:,4:6]
+    uvpnu_labels = labels
+
+    uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
+        self.compute_data_pde_losses(uvpnu_input,uvpnu_labels,xz)
+      # replica's loss, divided by global batch size
+    data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
+
+    loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
+
+    #loss += tf.add_n(self.losses)
+    # track loss and mae
+    self.validMetrics['loss'].update_state(loss)
+    self.validMetrics['data_loss'].update_state(data_loss)
+    self.validMetrics['cont_loss'].update_state(contMse)
+    self.validMetrics['mom_x_loss'].update_state(momxMse)
+    self.validMetrics['mom_z_loss'].update_state(momzMse)
+    self.validMetrics['uMse'].update_state(uMse)
+    self.validMetrics['vMse'].update_state(vMse)
+    self.validMetrics['pMse'].update_state(pMse)
+    self.validMetrics['nuMse'].update_state(nuMse)
+
+    for key in self.validMetrics:
+      self.validStat[key] = self.validMetrics[key].result()
+    return self.validStat

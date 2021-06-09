@@ -82,8 +82,8 @@ class VisionTransformerLayers(keras.layers.Layer):
     self.Add0 = []
     self.Add1 = []
 
-    self.Patches = keras.layers.Reshape( (int(self.nPatchesImage), int(self.nPixelsPatch*self.channelsInput) ),name="reshape1" )
-    self.EncodedPatches = PatchEncoder(self.nPatchesImage,self.projection_dim_encoder)
+    self.Patches = keras.layers.Reshape( (int(self.nPatchesImage), int(self.nPixelsPatch*self.channelsInput) ),name="reshape1" ) #[BS,NP,PATCH_DIM] PATCH_DIM = Npixe
+    self.EncodedPatches = PatchEncoder(self.nPatchesImage,self.projection_dim_encoder) #[BS,NP,PROJ_DIM]
 
     
     #transformer encoder
@@ -104,7 +104,7 @@ class VisionTransformerLayers(keras.layers.Layer):
     self.MapDense = keras.layers.Dense(256,activation=tf.nn.leaky_relu,name="Map/Dense",trainable=True )
     self.MapReshape0 = keras.layers.Reshape( (4,16,self.channelsOutput),name="Task/Reshape" )
     self.MapDeconv = keras.layers.Conv2DTranspose(filters=4*self.channelsOutput,kernel_size=(3,3),padding="same",strides=(4,4),activation=tf.nn.leaky_relu,name="Task/Conv",trainable=True)
-    self.MapDeconv2 = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(3,3),padding="same",strides=(4,4),activation='linear',name="Task/Conv2",trainable=True)
+    self.MapDeconv2 = keras.layers.Conv2DTranspose(filters=self.channelsOutput,kernel_size=(3,3),padding="same",strides=(8,8),activation='linear',name="Task/Conv2",trainable=True)
     #self.MapReshape1 = keras.layers.Reshape( (self.nPatchesImage, self.nRowsPatch, self.nColumnsPatch, self.channelsOutput),name="Map/Rehsape_Out" )
 
 
