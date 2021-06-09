@@ -86,7 +86,7 @@ class NSAttention(NSModelPinn):
     self.invpooling = []
     self.concatenate = []
 
-    self.upsample = keras.layers.UpSampling2D(size=(self.f,self.f),interpolation="bilinear")
+    self.upsample = keras.layers.UpSampling2D(size=(self.f,self.f),interpolation="nearest")
     self.downsample = keras.layers.AveragePooling2D(pool_size=(self.f,self.f),strides=(self.f,self.f),padding="same")
 
     self.conv = keras.layers.Conv2D(filters=16,kernel_size=(4,4),strides=(4,4),padding="same",activation=tf.nn.leaky_relu)
@@ -101,7 +101,7 @@ class NSAttention(NSModelPinn):
 
     for i in range(len(filters)-1):
         self.pooling.append(keras.layers.AveragePooling2D(pool_size=(4,8),strides=(4,8),padding="same"))
-        self.invpooling.append(keras.layers.UpSampling2D(size=(4,8),interpolation="bilinear"))
+        self.invpooling.append(keras.layers.UpSampling2D(size=(4,8),interpolation="nearest"))
 
     self.extractor = ResidualBlock(filters=4,kernel_size=3) 
 
@@ -139,8 +139,8 @@ class NSAttention(NSModelPinn):
     y2 = self.invpooling[1](y3)
     y2 = self.res_block[4](y2)
     y2 = self.concatenate[1]([y2,x1])
-    high_res_pred = self.res_block[5](y2)
 
+    high_res_pred = self.res_block[5](y2)
 
     ##low_res_pred = tf.image.resize(high_res_pred,
     #                                size = self.LR_size,
@@ -275,10 +275,10 @@ class NSAttention(NSModelPinn):
     high_res_true = inputs[:,:,:,0:4]
     high_res_xz = inputs[:,:,:,4:6]
 
-    #low_res_true = tf.image.resize( high_res_true,
-    #                                size=self.LR_size,
-    #                                method="bilinear",
-    #                                preserve_aspect_ratio=True)
+   # low_res_true = tf.image.resize( high_res_true,
+   #                                 size=self.LR_size,
+   #                                 method="bilinear",
+   #                                 preserve_aspect_ratio=True)
     low_res_true = tf.keras.layers.AveragePooling2D(pool_size=(self.f,self.f),strides=(self.f,self.f),padding="same")(high_res_true)
 
     with tf.GradientTape(persistent=True) as tape0:
