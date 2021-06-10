@@ -68,8 +68,7 @@ ds = Dataset(size=image_size,
 
 ds.set_type("validation")
 cases=["ellipse03"]
-_ , Y_train = ds.load_data(cases,patches=0)
-X_train = Y_train
+_ , X_train = ds.load_data(cases,patches=0)
 print(X_train.shape)
 ##### Training dataset #####
 #ds.set_type("train")
@@ -77,50 +76,51 @@ print(X_train.shape)
 #X_train, Y_train = ds.load_data(ellipses,patches=1,patch_size=patch_size)
 
 
-#name = "epochs_"+str(args.epochs)+\
-#       "_lr_"+str(args.learningrate)+\
-#       "_bs_"+str(args.batchsize)+\
-#       "_reg_"+str(args.lambdacont)+\
-#       "_RLR_"+str(args.reducelr)+\
-#       "_masking_"+str(args.masking)+\
-#       "_projection_"+str(args.projection)+\
-#       "_attention_"+str(args.attention)+\
-#       "_Transformer"
+name = "epochs_"+str(args.epochs)+\
+       "_lr_"+str(args.learningrate)+\
+       "_bs_"+str(args.batchsize)+\
+       "_reg_"+str(args.lambdacont)+\
+       "_RLR_"+str(args.reducelr)+\
+       "_masking_"+str(args.masking)+\
+       "_projection_"+str(args.projection)+\
+       "_attention_"+str(args.attention)+\
+       "_Transformer"
 #
 #with mirrored_strategy.scope():
 factor = 16
 f = int(np.sqrt(factor))
+filters=[4,8]
 nsNet =  NSAttention(image_size = [args.height,args.width,6],
                      factor = f,
                      query_dimension=100,
-                     value_dimension=100)
+                     value_dimension=100,
+		     filters=[4,8],
+		     beta=[args.lambdacont,args.lambdamomx,args.lambdamomz])
+
 
 optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
 nsNet.compile(optimizer=optimizer,
-	      run_eagerly=False)
+	      run_eagerly=True)
 nsCB=[]
-#
-#
-##if (args.reducelr):
-## nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
-##						 factor=0.8,\
-##						 min_delta=1e-3,\
-##      						 patience=args.patience,
-##						 min_lr=1e-7)
-##      ]
-##
-#print("X train shape ", X_train.shape)
-##print("Y train shape ",Y_train.shape)
-##print("-------")
+
+
+if (args.reducelr):
+ nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
+						 factor=0.8,\
+						 min_delta=1e-3,\
+      						 patience=args.patience,
+						 min_lr=1e-7)
+      ]
+
 history = nsNet.fit(x=X_train,
-                    y=Y_train,
+                    y=X_train,
                     batch_size=args.batchsize,
-                    validation_split=0.12,\
+                    validation_data=(X_train[0:60],X_train[0:60]),\
                     initial_epoch=0, 
                     epochs=args.epochs,\
                     verbose=1, 
                	    callbacks=nsCB,
               	    shuffle=True)
 
-#plot.history(history,name=name)
-#nsNet.save('./models/'+name)
+plot.history(history,name=name)
+nsNet.save('./models/'+name)

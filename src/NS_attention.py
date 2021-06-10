@@ -87,10 +87,8 @@ class NSAttention(NSModelPinn):
     self.concatenate = []
 
     self.upsample = keras.layers.UpSampling2D(size=(self.f,self.f),interpolation="nearest")
-    self.downsample = keras.layers.AveragePooling2D(pool_size=(self.f,self.f),strides=(self.f,self.f),padding="same")
+    #self.downsample = keras.layers.AveragePooling2D(pool_size=(self.f,self.f),strides=(self.f,self.f),padding="same")
 
-    self.conv = keras.layers.Conv2D(filters=16,kernel_size=(4,4),strides=(4,4),padding="same",activation=tf.nn.leaky_relu)
-    self.deconv = keras.layers.Conv2DTranspose(filters=16,kernel_size=(4,4),strides=(4,4),padding="same",activation=tf.nn.leaky_relu)
 
     for i in filters:
         self.res_block.append(ResidualBlock(filters=i,kernel_size=5))
@@ -105,62 +103,57 @@ class NSAttention(NSModelPinn):
 
     self.extractor = ResidualBlock(filters=4,kernel_size=3) 
 
-    self.query_encoding = keras.layers.Conv2D(filters=query_dimension,
-                                                kernel_size=(self.LR_size[0],self.LR_size[1]),
-                                                strides=(self.LR_size[0],self.LR_size[1]),
-                                                padding="same")
+    #self.query_encoding = keras.layers.Conv2D(filters=query_dimension,
+    #                                            kernel_size=(self.LR_size[0],self.LR_size[1]),
+    #                                            strides=(self.LR_size[0],self.LR_size[1]),
+    #                                            padding="same")
 
-    self.value_encoding = keras.layers.Conv2D(filters=value_dimension,
-                                                kernel_size=(4,4), 
-                                                strides=(4,4),
-                                                padding="same")
+    #self.value_encoding = keras.layers.Conv2D(filters=value_dimension,
+    #                                            kernel_size=(4,4), 
+    #                                            strides=(4,4),
+    #                                            padding="same")
 
 
-    self.attention = keras.layers.Attention()
-    self.reshape_query = keras.layers.Reshape((-1,self.query_dim))
-    self.reshape_value = keras.layers.Reshape((-1,self.value_dim))
+    #self.attention = keras.layers.Attention()
+    #self.reshape_query = keras.layers.Reshape((-1,self.query_dim))
+    #self.reshape_value = keras.layers.Reshape((-1,self.value_dim))
     self.concatenate_coordinates = keras.layers.Concatenate(axis=-1)
 
   def call(self, inputs):
 
     low_res_true = inputs[0]
-    coordinates = inputs[1]
+    coordinates = inputs[1]/500
 
     x1 = self.upsample(low_res_true)
     x1 = self.res_block[0](x1)
-    x1 = self.concatenate_coordinates([x1,coordinates])
     x2 = self.pooling[0](x1)
     x2 = self.res_block[1](x2)
-    x3 = self.pooling[1](x2)
-    x3 = self.res_block[2](x3)
-    y3 = self.invpooling[0](x3)
-    y3 = self.res_block[3](y3)
-    y3 = self.concatenate[0]([y3,x2])
-    y2 = self.invpooling[1](y3)
-    y2 = self.res_block[4](y2)
+    y2 = self.invpooling[0](x2)
+    y2 = self.res_block[2](y2)
     y2 = self.concatenate[1]([y2,x1])
+    y2 = self.concatenate_coordinates([y2,coordinates])
 
-    high_res_pred = self.res_block[5](y2)
+    high_res_pred = self.res_block[3](y2)
 
-    ##low_res_pred = tf.image.resize(high_res_pred,
-    #                                size = self.LR_size,
-    #                                method='bilinear',
-    #                                preserve_aspect_ratio = True)
+    low_res_pred = tf.image.resize(high_res_pred,
+                                   size = self.LR_size,
+                                   method='bilinear',
+                                   preserve_aspect_ratio = True)
 
-    low_res_pred = self.downsample(high_res_pred)
-    diff = tf.math.square(low_res_pred-low_res_true)
-
-    query = self.extractor(diff)
-    value   = self.extractor(high_res_pred)
-
-    query_enc = self.query_encoding(query)
-    value_enc = self.value_encoding(value)
-
-
-    query_enc = self.reshape_query(query_enc)
-    value_enc = self.reshape_value(value_enc)
-
-    attention , scores = self.attention([query_enc,value_enc],return_attention_scores=True)  
+#    low_res_pred = self.downsample(high_res_pred)
+#    diff = tf.math.square(low_res_pred-low_res_true)
+#
+#    query = self.extractor(diff)
+#    value   = self.extractor(high_res_pred)
+#
+#    query_enc = self.query_encoding(query)
+#    value_enc = self.value_encoding(value)
+#
+#
+#    query_enc = self.reshape_query(query_enc)
+#    value_enc = self.reshape_value(value_enc)
+#
+#    attention , scores = self.attention([query_enc,value_enc],return_attention_scores=True)  
 
     return high_res_pred , low_res_pred
 
@@ -210,11 +203,13 @@ class NSAttention(NSModelPinn):
     z = tf.zeros(tf.shape(pde0),dtype=tf.float32)
     pde0Mse    = tf.reduce_mean(tf.square(pde0-z))
 
-    pde1    = u_pred*u_x + v_pred*u_z + p_x - (0.01+ nu_pred)*(1/6000)*(u_xx + u_zz)
-    pde1Mse    = tf.reduce_mean(tf.square(pde1-z))
-
-    pde2    = u_pred*v_x + v_pred*v_z + p_z - (0.01 + nu_pred)*(1/6000)*(v_xx + v_zz)
-    pde2Mse    = tf.reduce_mean(tf.square(pde2-z))
+#    pde1    = u_pred_HR*u_x + v_pred_HR*u_z + p_x - (0.01+ nu_pred_HR)*(1/6000)*(u_xx + u_zz)
+#    pde1Mse    = tf.reduce_mean(tf.square(pde1-z))
+    pde1Mse = 0
+    #pde1Mse = 0 
+   # pde2    = u_pred_HR*v_x + v_pred_HR*v_z + p_z - (0.01 + nu_pred_HR)*(1/6000)*(v_xx + v_zz)
+   # pde2Mse    = tf.reduce_mean(tf.square(pde2-z))
+    pde2Mse = 0 
 
     return uMse, vMse, pMse, nuMse, pde0Mse, pde1Mse, pde2Mse
 
@@ -230,8 +225,6 @@ class NSAttention(NSModelPinn):
                                     method="bilinear",
                                     preserve_aspect_ratio=True)
 
-
-    
     high_res_pred , _ = self([low_res_true,high_res_xz])
 
     u_pred_HR       = high_res_pred[:,:,:,0]
@@ -245,7 +238,7 @@ class NSAttention(NSModelPinn):
     nuMse = tf.reduce_mean(tf.square(nu_pred_HR - high_res_true[:,:,:,3]))
 
       # replica's loss, divided by global batch size
-    data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
+    data_loss  = 0.5*(uMse   + vMse)#   + pMse + nuMse) 
 
     loss = data_loss
 
@@ -273,13 +266,12 @@ class NSAttention(NSModelPinn):
     inputs = data[0]
  
     high_res_true = inputs[:,:,:,0:4]
-    high_res_xz = inputs[:,:,:,4:6]
-
-   # low_res_true = tf.image.resize( high_res_true,
-   #                                 size=self.LR_size,
-   #                                 method="bilinear",
-   #                                 preserve_aspect_ratio=True)
-    low_res_true = tf.keras.layers.AveragePooling2D(pool_size=(self.f,self.f),strides=(self.f,self.f),padding="same")(high_res_true)
+    high_res_xz = inputs[:,:,:,4:6] 
+    
+    low_res_true = tf.image.resize( high_res_true,
+                                    size=self.LR_size,
+                                    method="bilinear",
+                                    preserve_aspect_ratio=True)
 
     with tf.GradientTape(persistent=True) as tape0:
       # compute the data loss for u, v, p and pde losses for
@@ -287,9 +279,11 @@ class NSAttention(NSModelPinn):
       uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
         self.compute_data_pde_losses(low_res_true, high_res_xz)
       # replica's loss, divided by global batch size
-      data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
+      data_loss  = 0.5*(uMse   + vMse)#   + pMse + nuMse) 
 
-      loss = data_loss + self.beta[0]*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
+      beta = int(data_loss.numpy()/contMse.numpy())
+
+      loss = data_loss + self.beta[0]*beta*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
     if self.saveGradStat:
       uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
       vMseGrad    = tape0.gradient(vMse,    self.trainable_variables)

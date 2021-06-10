@@ -140,7 +140,7 @@ class Dataset():
       X = self.extract_2d_patches(X,patch_size)
       Y = self.extract_2d_patches(Y,patch_size)
 
-  n=500
+  n=600
   return X[0:n],Y[0:n]
 
 
@@ -356,14 +356,14 @@ class Dataset():
 
  def convert_to_foam(self,arr):
 
-  p0 = arr[:,0,:,:,:]
-  p1 = arr[:,1,:,:,:]
-  p2 = arr[:,2,:,:,:]
-  p3 = arr[:,3,:,:,:]
-  
-  bottom = np.append(p0,p2,axis=1)
-  top = np.append(p1,p3,axis=1)
-  arr = np.append(bottom,top,axis=2)
+#  p0 = arr[:,0,:,:,:]
+#  p1 = arr[:,1,:,:,:]
+#  p2 = arr[:,2,:,:,:]
+#  p3 = arr[:,3,:,:,:]
+#  
+#  bottom = np.append(p0,p2,axis=1)
+#  top = np.append(p1,p3,axis=1)
+#  arr = np.append(bottom,top,axis=2)
 
   Ux = arr[:,:,:,0]
   Uz = arr[:,:,:,1]
@@ -463,8 +463,8 @@ class Dataset():
  def unmap_domain(self,var):
 
   n_samples = var.shape[0]
-  height = self.height
-  width = self.width
+  height = var.shape[1]
+  width = var.shape[2]
   w = int(width/4)
   variable_list = []
 

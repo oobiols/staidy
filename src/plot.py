@@ -35,7 +35,7 @@ def history(history,name, writing=1):
  
 
  plt.legend(prop={'size': 6}) 
- plt.ylim(1e-8,10)
+ plt.ylim(1e-12,10)
  plt.xlabel("epoch")
  plt.ylabel("loss")
  plt.yscale("log")
