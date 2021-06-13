@@ -57,10 +57,10 @@ class ResidualBlock(keras.layers.Layer):
 
        x1 = self.Conv1(inputs)
        x = self.BN1(x1)
-       x = self.Conv2(x)
-       x = self.BN2(x)
-       x = self.Conv3(x)
-       x = self.BN3(x)
+     #  x = self.Conv2(x)
+    #   x = self.BN2(x)
+#       x = self.Conv3(x)
+#       x = self.BN3(x)
        x = self.Add([x,x1])
 
        return x
@@ -98,7 +98,7 @@ class NSAttention(NSModelPinn):
         self.res_block.append(ResidualBlock(filters=i,kernel_size=5))
 
     for i in range(len(filters)-1):
-        self.pooling.append(keras.layers.AveragePooling2D(pool_size=(4,8),strides=(4,8),padding="same"))
+        self.pooling.append(keras.layers.AveragePooling2D(pool_size=(1,8),strides=(4,8),padding="same"))
         self.invpooling.append(keras.layers.UpSampling2D(size=(4,8),interpolation="nearest"))
 
     self.extractor = ResidualBlock(filters=4,kernel_size=3) 
@@ -125,20 +125,20 @@ class NSAttention(NSModelPinn):
     coordinates = inputs[1]/500
 
     x1 = self.upsample(low_res_true)
+    x1 = self.concatenate_coordinates([x1,coordinates])
     x1 = self.res_block[0](x1)
-    x2 = self.pooling[0](x1)
-    x2 = self.res_block[1](x2)
-    y2 = self.invpooling[0](x2)
-    y2 = self.res_block[2](y2)
+    #x2 = self.pooling[0](x1)
+    x2 = self.res_block[1](x1)
+    #y2 = self.invpooling[0](x2)
+    y2 = self.res_block[2](x2)
     y2 = self.concatenate[1]([y2,x1])
-    y2 = self.concatenate_coordinates([y2,coordinates])
 
     high_res_pred = self.res_block[3](y2)
 
     low_res_pred = tf.image.resize(high_res_pred,
-                                   size = self.LR_size,
+                                   size = [16,64],
                                    method='bilinear',
-                                   preserve_aspect_ratio = True)
+                                   preserve_aspect_ratio = False)
 
 #    low_res_pred = self.downsample(high_res_pred)
 #    diff = tf.math.square(low_res_pred-low_res_true)
@@ -158,7 +158,7 @@ class NSAttention(NSModelPinn):
     return high_res_pred , low_res_pred
 
 
-  def compute_data_pde_losses(self, low_res_true, high_res_xz):
+  def compute_data_pde_losses(self, low_res_true, high_res_xz,labels):
 
     with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
       tape2.watch(high_res_xz)
@@ -203,9 +203,8 @@ class NSAttention(NSModelPinn):
     z = tf.zeros(tf.shape(pde0),dtype=tf.float32)
     pde0Mse    = tf.reduce_mean(tf.square(pde0-z))
 
-#    pde1    = u_pred_HR*u_x + v_pred_HR*u_z + p_x - (0.01+ nu_pred_HR)*(1/6000)*(u_xx + u_zz)
-#    pde1Mse    = tf.reduce_mean(tf.square(pde1-z))
-    pde1Mse = 0
+    pde1    = u_pred_HR*u_x + v_pred_HR*u_z + p_x - (0.01+ nu_pred_HR)*(1/(6000*500))*(u_xx + u_zz)
+    pde1Mse    = tf.reduce_mean(tf.square(pde1-z))
     #pde1Mse = 0 
    # pde2    = u_pred_HR*v_x + v_pred_HR*v_z + p_z - (0.01 + nu_pred_HR)*(1/6000)*(v_xx + v_zz)
    # pde2Mse    = tf.reduce_mean(tf.square(pde2-z))
@@ -238,7 +237,7 @@ class NSAttention(NSModelPinn):
     nuMse = tf.reduce_mean(tf.square(nu_pred_HR - high_res_true[:,:,:,3]))
 
       # replica's loss, divided by global batch size
-    data_loss  = 0.5*(uMse   + vMse)#   + pMse + nuMse) 
+    data_loss  = 0.5*(uMse   + vMse )#  + pMse + nuMse) 
 
     loss = data_loss
 
@@ -264,6 +263,7 @@ class NSAttention(NSModelPinn):
   def train_step(self, data):
 
     inputs = data[0]
+    labels = data[1]
  
     high_res_true = inputs[:,:,:,0:4]
     high_res_xz = inputs[:,:,:,4:6] 
@@ -277,13 +277,17 @@ class NSAttention(NSModelPinn):
       # compute the data loss for u, v, p and pde losses for
       # continuity (0) and NS (1-2)
       uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
-        self.compute_data_pde_losses(low_res_true, high_res_xz)
+        self.compute_data_pde_losses(low_res_true, high_res_xz,labels)
       # replica's loss, divided by global batch size
-      data_loss  = 0.5*(uMse   + vMse)#   + pMse + nuMse) 
+      data_loss  = 0.5*(uMse   + vMse)# + pMse + nuMse) 
 
-      beta = int(data_loss.numpy()/contMse.numpy())
+      
+      beta_cont = int(data_loss.numpy()/contMse.numpy())
+      #beta_momx = int(data_loss.numpy()/momxMse.numpy())
+      beta_momx = int(data_loss/momxMse.numpy())
 
-      loss = data_loss + self.beta[0]*beta*contMse + self.beta[1]*momxMse + self.beta[2]*momzMse
+      loss = data_loss + self.beta[0]*beta_cont*contMse + self.beta[1]*beta_momx*momxMse + self.beta[2]*momzMse
+
     if self.saveGradStat:
       uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
       vMseGrad    = tape0.gradient(vMse,    self.trainable_variables)

@@ -62,19 +62,10 @@ image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 masking=args.masking
 
-##### Validation dataset #####
-ds = Dataset(size=image_size, 
-	     add_coordinates = 1)
+X_train = np.load('./train_input.npy')
+X_val = np.load('./validation_input.npy')
 
-ds.set_type("validation")
-cases=["ellipse03"]
-_ , X_train = ds.load_data(cases,patches=0)
-print(X_train.shape)
-##### Training dataset #####
-#ds.set_type("train")
-#ellipses=["ellipse025","ellipse035","ellipse055","ellipse075","ellipse008","ellipse015","ellipse006","ellipse007","ellipse01","ellipse005"]
-#X_train, Y_train = ds.load_data(ellipses,patches=1,patch_size=patch_size)
-
+X_train= np.append(X_train,X_val,axis=0)
 
 name = "epochs_"+str(args.epochs)+\
        "_lr_"+str(args.learningrate)+\
@@ -85,8 +76,8 @@ name = "epochs_"+str(args.epochs)+\
        "_projection_"+str(args.projection)+\
        "_attention_"+str(args.attention)+\
        "_Transformer"
-#
-#with mirrored_strategy.scope():
+
+
 factor = 16
 f = int(np.sqrt(factor))
 filters=[4,8]
@@ -115,7 +106,7 @@ if (args.reducelr):
 history = nsNet.fit(x=X_train,
                     y=X_train,
                     batch_size=args.batchsize,
-                    validation_data=(X_train[0:60],X_train[0:60]),\
+                    validation_split=0.1,\
                     initial_epoch=0, 
                     epochs=args.epochs,\
                     verbose=1, 
