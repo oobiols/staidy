@@ -55,6 +55,11 @@ parser.add_argument('-pr', '--projection', type=int, default=64, \
                     help='number of projection dimentions for the patch encoder')
 parser.add_argument('-t', '--transformers', type=int, default=12, \
                     help='number of projection dimentions for the patch encoder')
+parser.add_argument('-s' '--strides', type=int, default=2, \
+                    help='number of projection dimentions for the patch encoder')
+parser.add_argument('-k' '--kernelsize', type=int, default=5, \
+                    help='number of projection dimentions for the patch encoder')
+
 args = parser.parse_args()
 mirrored_strategy = tf.distribute.MirroredStrategy()
 
@@ -86,6 +91,8 @@ nsNet =  NSAttention(image_size = [args.height,args.width,6],
                      query_dimension=100,
                      value_dimension=100,
 		     filters=[4,8],
+                     strides=args.strides,
+                     kernel_size=args.kernelsize,
 		     beta=[args.lambdacont,args.lambdamomx,args.lambdamomz])
 
 

@@ -70,6 +70,8 @@ class NSAttention(NSModelPinn):
                image_size=[64,256,6],
                filters=[4,16,64],
                factor = 4,
+               strides= 2,
+               kernel_size = 5,
                query_dimension = 100,
                value_dimension = 100,
                **kwargs):
@@ -85,24 +87,28 @@ class NSAttention(NSModelPinn):
     self.pooling = []
     self.invpooling = []
     self.concatenate = []
+    self.conv = []
+    self.deconv = []
 
-    self.upsample = keras.layers.UpSampling2D(size=(self.f,self.f),interpolation="nearest")
+    self.k = kernel_size
+    self.s = strides
+
+    self.upsample = keras.layers.UpSampling2D(size=(self.f,self.f),interpolation="bilinear")
     #self.downsample = keras.layers.AveragePooling2D(pool_size=(self.f,self.f),strides=(self.f,self.f),padding="same")
 
-
+  
     for i in filters:
-        self.res_block.append(ResidualBlock(filters=i,kernel_size=5))
-        self.concatenate.append(keras.layers.Concatenate(axis=-1))
-
+        self.conv.append(keras.layers.Conv2D(filters=i,
+                                             kernel_size=(self.k,self.k),
+                                             strides=(self.s,self.s),
+                                             activation=tf.nn.leaky_relu))
+    
     for i in reversed(filters):
-        self.res_block.append(ResidualBlock(filters=i,kernel_size=5))
-
-    for i in range(len(filters)-1):
-        self.pooling.append(keras.layers.AveragePooling2D(pool_size=(1,8),strides=(4,8),padding="same"))
-        self.invpooling.append(keras.layers.UpSampling2D(size=(4,8),interpolation="nearest"))
-
-    self.extractor = ResidualBlock(filters=4,kernel_size=3) 
-
+        self.deconv.append(keras.layers.Conv2DTranspose(filters=i,           
+                                             kernel_size=(self.k,self.k),
+                                             strides=(self.s,self.s),
+                                             activation=tf.nn.leaky_relu))
+ 
     #self.query_encoding = keras.layers.Conv2D(filters=query_dimension,
     #                                            kernel_size=(self.LR_size[0],self.LR_size[1]),
     #                                            strides=(self.LR_size[0],self.LR_size[1]),
@@ -126,17 +132,16 @@ class NSAttention(NSModelPinn):
 
     x1 = self.upsample(low_res_true)
     x1 = self.concatenate_coordinates([x1,coordinates])
-    x1 = self.res_block[0](x1)
-    #x2 = self.pooling[0](x1)
-    x2 = self.res_block[1](x1)
-    #y2 = self.invpooling[0](x2)
-    y2 = self.res_block[2](x2)
-    y2 = self.concatenate[1]([y2,x1])
+    for layer in self.conv:
+        x1 = layer(x1)
 
-    high_res_pred = self.res_block[3](y2)
+    for layer in self.deconv:
+        x1 = layer(x1)
 
+
+    high_res_pred = x1
     low_res_pred = tf.image.resize(high_res_pred,
-                                   size = [16,64],
+                                   size = self.LR_size,
                                    method='bilinear',
                                    preserve_aspect_ratio = False)
 
