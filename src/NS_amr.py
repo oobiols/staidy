@@ -65,7 +65,7 @@ class ResidualBlock(keras.layers.Layer):
 
        return x
 
-class NSAttention(NSModelPinn):
+class NSAmr(NSModelPinn):
   def __init__(self, 
                image_size=[64,256,6],
                filters=[4,16,64],
@@ -76,7 +76,7 @@ class NSAttention(NSModelPinn):
                value_dimension = 100,
                **kwargs):
 
-    super(NSAttention, self).__init__(**kwargs)
+    super(NSAmr, self).__init__(**kwargs)
     self.f = factor
     self.query_dim = query_dimension
     self.value_dim = value_dimension
@@ -142,6 +142,7 @@ class NSAttention(NSModelPinn):
 
 
     high_res_pred = x1
+    
     low_res_pred = tf.image.resize(high_res_pred,
                                    size = self.LR_size,
                                    method='bilinear',
@@ -165,7 +166,12 @@ class NSAttention(NSModelPinn):
     return high_res_pred , low_res_pred
 
 
-  def compute_data_pde_losses(self, low_res_true, high_res_xz,labels):
+  def compute_data_pde_losses(self, high_res_true, high_res_xz,labels):
+
+    low_res_true = tf.image.resize( high_res_true,
+                                    size=self.LR_size,
+                                    method="bilinear",
+                                    preserve_aspect_ratio=True)
 
     with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
       tape2.watch(high_res_xz)
@@ -200,8 +206,8 @@ class NSAttention(NSModelPinn):
     v_zz = tape2.gradient(v_z, high_res_xz)[:,:,:,1]
     del tape2
 
-    uMse = tf.reduce_mean(tf.square(u_pred_LR - low_res_true[:,:,:,0]))
-    vMse = tf.reduce_mean(tf.square(v_pred_LR - low_res_true[:,:,:,1]))
+    uMse = tf.reduce_mean(tf.square(u_pred_LR - low_res_true[:,:,:,0])) + tf.reduce_mean(tf.square(u_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,0]))
+    vMse = tf.reduce_mean(tf.square(v_pred_LR - low_res_true[:,:,:,1])) + tf.reduce_mean(tf.square(v_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,1]))
     pMse = tf.reduce_mean(tf.square(p_pred_LR -  low_res_true[:,:,:,2]))
     nuMse = tf.reduce_mean(tf.square(nu_pred_LR - low_res_true[:,:,:,3]))
 
@@ -226,7 +232,7 @@ class NSAttention(NSModelPinn):
     high_res_true = inputs[:,:,:,0:4]
     high_res_xz = inputs[:,:,:,4:6]
 
-    low_res_true = tf.image.resize(high_res_true,
+    low_res_true = tf.image.resize( high_res_true,
                                     size=self.LR_size,
                                     method="bilinear",
                                     preserve_aspect_ratio=True)
@@ -275,16 +281,12 @@ class NSAttention(NSModelPinn):
     high_res_true = inputs[:,:,:,0:4]
     high_res_xz = inputs[:,:,:,4:6] 
     
-    low_res_true = tf.image.resize( high_res_true,
-                                    size=self.LR_size,
-                                    method="bilinear",
-                                    preserve_aspect_ratio=True)
 
     with tf.GradientTape(persistent=True) as tape0:
       # compute the data loss for u, v, p and pde losses for
       # continuity (0) and NS (1-2)
       uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
-        self.compute_data_pde_losses(low_res_true, high_res_xz,labels)
+        self.compute_data_pde_losses(high_res_true, high_res_xz,labels)
       # replica's loss, divided by global batch size
       data_loss  = 0.5*(uMse   + vMse)# + pMse + nuMse) 
 

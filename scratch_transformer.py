@@ -4,9 +4,8 @@ import os
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from NS_transformer import *
+from NS_amr import *
 from NS_attention import *
-from NS_model import  NSModelTransformerPinn
 from data_generator import DataGenerator, SimpleGenerator
 from Dataset import Dataset
 from sklearn.utils import shuffle
@@ -23,6 +22,10 @@ sess = tf.compat.v1.Session(config=config)
 
 keras.backend.set_floatx('float32')
 parser = argparse.ArgumentParser()
+parser.add_argument('-st', '--strides', type=int, default=2,\
+                    help='height of the single image')
+parser.add_argument('-ke', '--kernelsize', type=int, default=5,\
+                    help='height of the single image')
 parser.add_argument('-he', '--height', type=int, default=64,\
                     help='height of the single image')
 parser.add_argument('-w', '--width', type=int, default=256,\
@@ -55,9 +58,7 @@ parser.add_argument('-pr', '--projection', type=int, default=64, \
                     help='number of projection dimentions for the patch encoder')
 parser.add_argument('-t', '--transformers', type=int, default=12, \
                     help='number of projection dimentions for the patch encoder')
-parser.add_argument('-s' '--strides', type=int, default=2, \
-                    help='number of projection dimentions for the patch encoder')
-parser.add_argument('-k' '--kernelsize', type=int, default=5, \
+parser.add_argument('-mn', '--modelname', type=str, default="amr", \
                     help='number of projection dimentions for the patch encoder')
 
 args = parser.parse_args()
@@ -68,33 +69,32 @@ patch_size =[args.patchheight,args.patchwidth]
 masking=args.masking
 
 X_train = np.load('./train_input.npy')
-X_val = np.load('./validation_input.npy')
 
-X_train= np.append(X_train,X_val,axis=0)
 
 name = "epochs_"+str(args.epochs)+\
        "_lr_"+str(args.learningrate)+\
        "_bs_"+str(args.batchsize)+\
        "_reg_"+str(args.lambdacont)+\
        "_RLR_"+str(args.reducelr)+\
-       "_masking_"+str(args.masking)+\
-       "_projection_"+str(args.projection)+\
-       "_attention_"+str(args.attention)+\
-       "_Transformer"
-
+       args.modelname
 
 factor = 16
 f = int(np.sqrt(factor))
-filters=[4,8]
-nsNet =  NSAttention(image_size = [args.height,args.width,6],
+filters=[4,8,16]
+
+if args.modelname =="amr":
+ nsNet =  NSAmr(image_size = [args.height,args.width,6],
                      factor = f,
                      query_dimension=100,
                      value_dimension=100,
-		     filters=[4,8],
-                     strides=args.strides,
-                     kernel_size=args.kernelsize,
+		     filters=filters,
+			strides=args.strides,
+			kernel_size = args.kernelsize,
 		     beta=[args.lambdacont,args.lambdamomx,args.lambdamomz])
 
+
+else: 
+ nsNet = 1
 
 optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
 nsNet.compile(optimizer=optimizer,
@@ -110,10 +110,23 @@ if (args.reducelr):
 						 min_lr=1e-7)
       ]
 
+
+nsCB = [keras.callbacks.EarlyStopping(monitor="val_loss",\
+					min_delta=1e-5,\
+					patience = args.patience,\
+					    verbose=1,\
+					    mode="auto",\
+					    baseline=None,\
+					    restore_best_weights=False,
+)]
+
+X_val = np.load('./ellipse03.npy')
+Y_val = X_val
+
 history = nsNet.fit(x=X_train,
                     y=X_train,
-                    batch_size=args.batchsize,
-                    validation_split=0.1,\
+			steps_per_epoch=args.batchsize,
+                    validation_data=(X_val,Y_val),\
                     initial_epoch=0, 
                     epochs=args.epochs,\
                     verbose=1, 
