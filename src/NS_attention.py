@@ -40,7 +40,7 @@ class ResidualBlockAttentionModule(keras.layers.Layer):
        spatial = self.SA(inputs)
        spatial_attention = self.elementwise_1([spatial,inputs])
        channel = self.CA(spatial_attention)
-       channel_attention = self.elementwise_1([channel,spatial_attention])
+       channel_attention = self.elementwise_2([channel,spatial_attention])
        x = self.res([inputs,channel_attention])
       
        return x
@@ -69,7 +69,7 @@ class SpatialAttentionModule(keras.layers.Layer):
 
 class ChannelAttentionModule(keras.layers.Layer):
     def __init__(self,
-                 filters=16,
+                 f=16,
                  r = 4 ,
                  height = 16,
                  width  = 64, 
@@ -103,8 +103,6 @@ class NSAttention(NSModelPinn):
 
     super(NSAttention, self).__init__(**kwargs)
     self.f = factor
-    self.query_dim = query_dimension
-    self.value_dim = value_dimension
     self.HR_size = image_size
     self.LR_size = [int(image_size[0]/self.f),int(image_size[1]/self.f)]
     self.num_attention = num_attention
@@ -117,6 +115,7 @@ class NSAttention(NSModelPinn):
     self.s = strides
 
     self.upsample = keras.layers.UpSampling2D(size=(self.f,self.f),interpolation="bilinear")
+    self.concatenate_coordinates = keras.layers.Concatenate(axis=-1)
 
   
     for i in filters:
@@ -135,11 +134,11 @@ class NSAttention(NSModelPinn):
  
     fil = filters[-1]  
 
-    for i in self.num_attention:
-         self.RBAM.append(ResidualBlockAttentionModule(filters=fil,
+    for i in range(self.num_attention):
+         self.RBAM.append(ResidualBlockAttentionModule( f=fil,
                                                         r=4,
                                                         height=self.HR_size[0],
-                                                        width=self.LR_size[1]))
+                                                        width=self.HR_size[1]))
 
 
   def call(self, inputs):
