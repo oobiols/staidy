@@ -133,9 +133,9 @@ class NSAttention(NSModelPinn):
 					     padding="same",
                                              activation=tf.nn.leaky_relu))
  
-     fil = filters[-1]  
+    fil = filters[-1]  
 
-     for i in self.num_attention:
+    for i in self.num_attention:
          self.RBAM.append(ResidualBlockAttentionModule(filters=fil,
                                                         r=4,
                                                         height=self.HR_size[0],
