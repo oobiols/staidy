@@ -210,10 +210,25 @@ class NSAttention(NSModelPinn):
     v_zz = tape2.gradient(v_z, high_res_xz)[:,:,:,1]
     del tape2
 
-    uMse = tf.reduce_mean(tf.square(u_pred_LR - low_res_true[:,:,:,0])) + tf.reduce_mean(tf.square(u_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,0]))
-    vMse = tf.reduce_mean(tf.square(v_pred_LR - low_res_true[:,:,:,1])) + tf.reduce_mean(tf.square(v_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,1]))
-    pMse = tf.reduce_mean(tf.square(p_pred_LR -  low_res_true[:,:,:,2]))+ tf.reduce_mean(tf.square(p_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,2]))
-    nuMse = tf.reduce_mean(tf.square(nu_pred_LR - low_res_true[:,:,:,3]))+ tf.reduce_mean(tf.square(nu_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,3]))
+    uMse = tf.reduce_mean(tf.square(u_pred_LR - low_res_true[:,:,:,0])) \
+           + tf.reduce_mean(tf.square(u_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,0]))\
+           + tf.reduce_mean(tf.square(u_pred_HR[:,:,0]-high_res_true[:,:,0,0]\
+           + tf.reduce_mean(tf.square(u_pred_HR[:,:,-1]-high_res_true[:,:,-1,0]\
+
+    vMse = tf.reduce_mean(tf.square(v_pred_LR - low_res_true[:,:,:,1])) \
+           + tf.reduce_mean(tf.square(v_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,1]))\
+           + tf.reduce_mean(tf.square(v_pred_HR[:,:,0]-high_res_true[:,:,0,1]\
+           + tf.reduce_mean(tf.square(v_pred_HR[:,:,-1]-high_res_true[:,:,-1,1]\
+
+    pMse = tf.reduce_mean(tf.square(p_pred_LR - low_res_true[:,:,:,2])) \
+           + tf.reduce_mean(tf.square(p_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,2]))\
+           + tf.reduce_mean(tf.square(p_pred_HR[:,:,0]-high_res_true[:,:,0,2]\
+           + tf.reduce_mean(tf.square(p_pred_HR[:,:,-1]-high_res_true[:,:,-1,2]\
+
+    nuMse = tf.reduce_mean(tf.square(nu_pred_LR - low_res_true[:,:,:,3])) \
+           + tf.reduce_mean(tf.square(nu_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,3]))\
+           + tf.reduce_mean(tf.square(nu_pred_HR[:,:,0]-high_res_true[:,:,0,3]\
+           + tf.reduce_mean(tf.square(nu_pred_HR[:,:,-1]-high_res_true[:,:,-1,3]\
 
 
     # pde error, 0 continuity, 1-2 NS
