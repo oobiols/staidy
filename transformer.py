@@ -69,8 +69,8 @@ image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 masking=args.masking
 
-#X_train = np.load('./train_input_large.npy')
-#print(X_train.shape)
+X_train = np.load('./train_input_large.npy')
+print(X_train.shape)
 
 
 name = "epochs_"+str(args.epochs)+\

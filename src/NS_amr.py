@@ -3,6 +3,9 @@ from tensorflow import keras
 import numpy as np
 from NS_model import NSModelPinn
 
+strategy = tf.distribute.MirroredStrategy()
+
+
 class PositionEmbedding(keras.layers.Layer):
     def __init__(self,sequence_length,projection_dim_encoder):
      super(PositionEmbedding,self).__init__()
@@ -206,10 +209,14 @@ class NSAmr(NSModelPinn):
     v_zz = tape2.gradient(v_z, high_res_xz)[:,:,:,1]
     del tape2
 
-    uMse = tf.reduce_mean(tf.square(u_pred_LR - low_res_true[:,:,:,0])) + tf.reduce_mean(tf.square(u_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,0]))
-    vMse = tf.reduce_mean(tf.square(v_pred_LR - low_res_true[:,:,:,1])) + tf.reduce_mean(tf.square(v_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,1]))
-    pMse = tf.reduce_mean(tf.square(p_pred_LR -  low_res_true[:,:,:,2]))
-    nuMse = tf.reduce_mean(tf.square(nu_pred_LR - low_res_true[:,:,:,3]))
+    uMse = tf.reduce_mean(tf.square(u_pred_LR - low_res_true[:,:,:,0])) \
+           + tf.reduce_mean(tf.square(u_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,0]))
+    vMse = tf.reduce_mean(tf.square(v_pred_LR - low_res_true[:,:,:,1]))\
+           + tf.reduce_mean(tf.square(v_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,1]))
+    pMse = tf.reduce_mean(tf.square(p_pred_LR -  low_res_true[:,:,:,2])) \
+           + tf.reduce_mean(tf.square(p_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,2]))
+    nuMse = tf.reduce_mean(tf.square(nu_pred_LR - low_res_true[:,:,:,3]))\
+           + tf.reduce_mean(tf.square(nu_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,3]))
 
     # pde error, 0 continuity, 1-2 NS
     pde0    = u_x + v_z
@@ -250,7 +257,7 @@ class NSAmr(NSModelPinn):
     nuMse = tf.reduce_mean(tf.square(nu_pred_HR - high_res_true[:,:,:,3]))
 
       # replica's loss, divided by global batch size
-    data_loss  = 0.5*(uMse   + vMse )#  + pMse + nuMse) 
+    data_loss  = 0.25*(uMse   + vMse   + pMse + nuMse) 
 
     loss = data_loss
 
@@ -288,7 +295,7 @@ class NSAmr(NSModelPinn):
       uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
         self.compute_data_pde_losses(high_res_true, high_res_xz,labels)
       # replica's loss, divided by global batch size
-      data_loss  = 0.5*(uMse   + vMse)# + pMse + nuMse) 
+      data_loss  = 0.25*(uMse   + vMse + pMse + nuMse) 
 
       
       beta_cont = int(data_loss.numpy()/contMse.numpy())
@@ -296,6 +303,8 @@ class NSAmr(NSModelPinn):
       beta_momx = int(data_loss/momxMse.numpy())
 
       loss = data_loss + self.beta[0]*beta_cont*contMse + self.beta[1]*beta_momx*momxMse + self.beta[2]*momzMse
+
+      loss    = loss / strategy.num_replicas_in_sync
 
     if self.saveGradStat:
       uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
@@ -312,7 +321,7 @@ class NSAmr(NSModelPinn):
 
     # ---- update metrics and statistics ---- #
     # track loss and mae
-    self.trainMetrics['loss'].update_state(loss)
+    self.trainMetrics['loss'].update_state(loss*strategy.num_replicas_in_sync)
     self.trainMetrics['data_loss'].update_state(data_loss)
     self.trainMetrics['cont_loss'].update_state(contMse)
     self.trainMetrics['mom_x_loss'].update_state(momxMse)

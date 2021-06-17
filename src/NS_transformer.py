@@ -176,7 +176,7 @@ class NSTransformer(NSModelPinn):
                                    method='bilinear',
                                    preserve_aspect_ratio = False)
 
-    return high_res_pred , low_res_pred
+    return high_res_pred , low_res_pred, x1
 
 
   def compute_data_pde_losses(self, high_res_true, high_res_xz,labels):
@@ -191,7 +191,7 @@ class NSTransformer(NSModelPinn):
       with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(high_res_xz)
 
-        high_res_pred = self([low_res_true,high_res_xz])
+        high_res_pred , low_res_pred = self([low_res_true,high_res_xz])
 
         u_pred_LR       = low_res_pred[:,:,:,0]
         v_pred_LR       = low_res_pred[:,:,:,1]

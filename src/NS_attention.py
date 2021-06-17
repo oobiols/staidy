@@ -43,7 +43,7 @@ class ResidualBlockAttentionModule(keras.layers.Layer):
        channel_attention = self.elementwise_2([channel,spatial_attention])
        x = self.res([inputs,channel_attention])
       
-       return x
+       return x , spatial
 
 class SpatialAttentionModule(keras.layers.Layer):
     def __init__(self,
@@ -146,15 +146,15 @@ class NSAttention(NSModelPinn):
     low_res_true = inputs[0]
     coordinates = inputs[1]/500
 
-    x1 = self.upsample(low_res_true)
-    x1 = self.concatenate_coordinates([x1,coordinates])
+    up = self.upsample(low_res_true)
+    x1 = self.concatenate_coordinates([up,coordinates])
     for layer in self.feature_extractor:
         x1 = layer(x1)
     
     x2 = x1
     if self.attention == True:
      for layer in self.RBAM:
-        x2 = layer(x2)
+        x2 , spatial_attended_map = layer(x2)
 
     x3 = x2
     for layer in self.reconstruction:
@@ -167,7 +167,7 @@ class NSAttention(NSModelPinn):
                                    method='bilinear',
                                    preserve_aspect_ratio = False)
 
-    return high_res_pred , low_res_pred
+    return coordinates , low_res_pred, spatial_attended_map
 
 
   def compute_data_pde_losses(self, high_res_true, high_res_xz,labels):
@@ -182,7 +182,7 @@ class NSAttention(NSModelPinn):
       with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(high_res_xz)
 
-        high_res_pred = self([low_res_true,high_res_xz])
+        high_res_pred , low_res_pred = self([low_res_true,high_res_xz])
 
         u_pred_LR       = low_res_pred[:,:,:,0]
         v_pred_LR       = low_res_pred[:,:,:,1]
