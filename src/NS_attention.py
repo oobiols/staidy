@@ -134,8 +134,9 @@ class NSAttention(NSModelPinn):
  
     fil = filters[-1]  
 
-    for i in range(self.num_attention):
-         self.RBAM.append(ResidualBlockAttentionModule( f=fil,
+    n = len(filters)
+    for i in range(n):
+         self.RBAM.append(ResidualBlockAttentionModule( f=filters[i],
                                                         r=4,
                                                         height=self.HR_size[0],
                                                         width=self.HR_size[1]))
@@ -148,13 +149,15 @@ class NSAttention(NSModelPinn):
 
     up = self.upsample(low_res_true)
     x1 = self.concatenate_coordinates([up,coordinates])
-    for layer in self.feature_extractor:
+    for i,layer in enumerate(self.feature_extractor):
         x1 = layer(x1)
+        x1, spatial = self.RBAM[i](x1)
+       
     
     x2 = x1
-    if self.attention == True:
-     for layer in self.RBAM:
-        x2 , spatial_attended_map = layer(x2)
+   # if self.attention == True:
+   #  for layer in self.RBAM:
+   #     x2 , spatial_attended_map = layer(x2)
 
     x3 = x2
     for layer in self.reconstruction:
@@ -167,7 +170,7 @@ class NSAttention(NSModelPinn):
                                    method='bilinear',
                                    preserve_aspect_ratio = False)
 
-    return coordinates , low_res_pred, spatial_attended_map
+    return high_res_pred , low_res_pred, spatial
 
 
   def compute_data_pde_losses(self, high_res_true, high_res_xz,labels):
@@ -182,7 +185,7 @@ class NSAttention(NSModelPinn):
       with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(high_res_xz)
 
-        high_res_pred , low_res_pred = self([low_res_true,high_res_xz])
+        high_res_pred , low_res_pred, _ = self([low_res_true,high_res_xz])
 
         u_pred_LR       = low_res_pred[:,:,:,0]
         v_pred_LR       = low_res_pred[:,:,:,1]
@@ -197,38 +200,38 @@ class NSAttention(NSModelPinn):
       # 1st order derivatives
       u_grad   = tape1.gradient(u_pred_HR, high_res_xz)
       v_grad   = tape1.gradient(v_pred_HR, high_res_xz)
-      p_grad   = tape1.gradient(p_pred_HR, high_res_xz)
+#      p_grad   = tape1.gradient(p_pred_HR, high_res_xz)
       u_x, u_z = u_grad[:,:,:,0], u_grad[:,:,:,1]
       v_x, v_z = v_grad[:,:,:,0], v_grad[:,:,:,1]
-      p_x, p_z = p_grad[:,:,:,0], p_grad[:,:,:,1]
+#      p_x, p_z = p_grad[:,:,:,0], p_grad[:,:,:,1]
       del tape1
 
     # 2nd order derivatives
-    u_xx = tape2.gradient(u_x, high_res_xz)[:,:,:,0]
-    u_zz = tape2.gradient(u_z, high_res_xz)[:,:,:,1]
-    v_xx = tape2.gradient(v_x, high_res_xz)[:,:,:,0]
-    v_zz = tape2.gradient(v_z, high_res_xz)[:,:,:,1]
+#    u_xx = tape2.gradient(u_x, high_res_xz)[:,:,:,0]
+#    u_zz = tape2.gradient(u_z, high_res_xz)[:,:,:,1]
+#    v_xx = tape2.gradient(v_x, high_res_xz)[:,:,:,0]
+#    v_zz = tape2.gradient(v_z, high_res_xz)[:,:,:,1]
     del tape2
 
     uMse = tf.reduce_mean(tf.square(u_pred_LR - low_res_true[:,:,:,0])) \
            + tf.reduce_mean(tf.square(u_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,0]))\
-           + tf.reduce_mean(tf.square(u_pred_HR[:,:,0]-high_res_true[:,:,0,0]\
-           + tf.reduce_mean(tf.square(u_pred_HR[:,:,-1]-high_res_true[:,:,-1,0]\
+           + tf.reduce_mean(tf.square(u_pred_HR[:,:,0]-high_res_true[:,:,0,0]))\
+           + tf.reduce_mean(tf.square(u_pred_HR[:,:,-1]-high_res_true[:,:,-1,0]))
 
     vMse = tf.reduce_mean(tf.square(v_pred_LR - low_res_true[:,:,:,1])) \
            + tf.reduce_mean(tf.square(v_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,1]))\
-           + tf.reduce_mean(tf.square(v_pred_HR[:,:,0]-high_res_true[:,:,0,1]\
-           + tf.reduce_mean(tf.square(v_pred_HR[:,:,-1]-high_res_true[:,:,-1,1]\
+           + tf.reduce_mean(tf.square(v_pred_HR[:,:,0]-high_res_true[:,:,0,1]))\
+           + tf.reduce_mean(tf.square(v_pred_HR[:,:,-1]-high_res_true[:,:,-1,1]))
 
     pMse = tf.reduce_mean(tf.square(p_pred_LR - low_res_true[:,:,:,2])) \
            + tf.reduce_mean(tf.square(p_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,2]))\
-           + tf.reduce_mean(tf.square(p_pred_HR[:,:,0]-high_res_true[:,:,0,2]\
-           + tf.reduce_mean(tf.square(p_pred_HR[:,:,-1]-high_res_true[:,:,-1,2]\
+           + tf.reduce_mean(tf.square(p_pred_HR[:,:,0]-high_res_true[:,:,0,2]))\
+           + tf.reduce_mean(tf.square(p_pred_HR[:,:,-1]-high_res_true[:,:,-1,2]))
 
     nuMse = tf.reduce_mean(tf.square(nu_pred_LR - low_res_true[:,:,:,3])) \
            + tf.reduce_mean(tf.square(nu_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,3]))\
-           + tf.reduce_mean(tf.square(nu_pred_HR[:,:,0]-high_res_true[:,:,0,3]\
-           + tf.reduce_mean(tf.square(nu_pred_HR[:,:,-1]-high_res_true[:,:,-1,3]\
+           + tf.reduce_mean(tf.square(nu_pred_HR[:,:,0]-high_res_true[:,:,0,3]))\
+           + tf.reduce_mean(tf.square(nu_pred_HR[:,:,-1]-high_res_true[:,:,-1,3]))
 
 
     # pde error, 0 continuity, 1-2 NS
@@ -236,9 +239,9 @@ class NSAttention(NSModelPinn):
     z = tf.zeros(tf.shape(pde0),dtype=tf.float32)
     pde0Mse    = tf.reduce_mean(tf.square(pde0-z))
 
-    pde1    = u_pred_HR*u_x + v_pred_HR*u_z + p_x - (0.01+ nu_pred_HR)*(1/(6000*500))*(u_xx + u_zz)
-    pde1Mse    = tf.reduce_mean(tf.square(pde1-z))
-    #pde1Mse = 0 
+ #   pde1    = u_pred_HR*u_x + v_pred_HR*u_z + p_x - (0.01+ nu_pred_HR)*(1/(6000*500))*(u_xx + u_zz)
+ #   pde1Mse    = tf.reduce_mean(tf.square(pde1-z))
+    pde1Mse = 0 
 
 
    # pde2    = u_pred_HR*v_x + v_pred_HR*v_z + p_z - (0.01 + nu_pred_HR)*(1/6000)*(v_xx + v_zz)
@@ -259,7 +262,7 @@ class NSAttention(NSModelPinn):
                                     method="bilinear",
                                     preserve_aspect_ratio=True)
 
-    high_res_pred , _ = self([low_res_true,high_res_xz])
+    high_res_pred , _ , _ = self([low_res_true,high_res_xz])
 
     u_pred_HR       = high_res_pred[:,:,:,0]
     v_pred_HR       = high_res_pred[:,:,:,1]
@@ -314,8 +317,8 @@ class NSAttention(NSModelPinn):
 
       
       beta_cont = int(data_loss.numpy()/contMse.numpy())
-      #beta_momx = int(data_loss.numpy()/momxMse.numpy())
-      beta_momx = int(data_loss/momxMse.numpy())
+      #beta_momx = int(data_loss/momxMse.numpy())
+      beta_momx = 0
 
       loss = data_loss + self.beta[0]*beta_cont*contMse + self.beta[1]*beta_momx*momxMse + self.beta[2]*momzMse
 

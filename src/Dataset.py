@@ -140,8 +140,7 @@ class Dataset():
       X = self.extract_2d_patches(X,patch_size)
       Y = self.extract_2d_patches(Y,patch_size)
 
-  n=600
-  return X[0:n],Y[0:n]
+  return X,Y
 
 
  def join_datasets(self, path_1,path_2):
@@ -366,9 +365,9 @@ class Dataset():
 #  arr = np.append(bottom,top,axis=2)
 
   Ux = arr[:,:,:,0]
-  Uz = arr[:,:,:,1]
-  p = arr[:,:,:,2]
-  nuTilda = arr[:,:,:,3]
+  Uz = arr[:,:,:,0]
+  p = arr[:,:,:,0]
+  nuTilda = arr[:,:,:,0]
 
   Ux = self.unmap_domain(Ux)
   Uz = self.unmap_domain(Uz)
@@ -383,7 +382,8 @@ class Dataset():
 
  def vector_to_foam(self,X,Y,Z,variable_name="U"):
 
-  Uavg = 0.6
+  #Uavg = 0.6
+  Uavg=1.0
   n_samples = len(X)
   for n in range(n_samples):
 
@@ -412,6 +412,7 @@ class Dataset():
  def pressure_to_foam(self,X, variable_name='p'):
 
   Uavg = 0.6
+  #Uavg = 1.0
   n_samples = len(X)
   for n in range(n_samples):
 
@@ -437,6 +438,7 @@ class Dataset():
  def nuTilda_to_foam(self,X, variable_name='nuTilda'):
 
   Uavg = 1e-4
+  #Uavg = 1.0
   n_samples = len(X)
   for n in range(n_samples):
 
@@ -629,6 +631,13 @@ class DatasetNoWarmup(Dataset):
      nuTilda /= nuTildaAvg
      data   = np.concatenate( ( data, nuTilda), axis=2) 
   
+    x,z = self.xyz[:,0], self.xyz[:,2]
+    x,z = self.map_domain(x), self.map_domain(z)
+    x = x.reshape([x.shape[0], x.shape[1],1])
+    z = z.reshape([z.shape[0], z.shape[1],1])
+
+    data    = np.concatenate( (data, x) , axis=2)  
+    data    = np.concatenate( (data, z) , axis=2)  
  
    elif pos == "input":
    

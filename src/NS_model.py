@@ -3,7 +3,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from NS_compute_block import *
-from NS_transformer import VisionTransformerLayers
 
 strategy = tf.distribute.MirroredStrategy()
 
