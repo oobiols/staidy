@@ -225,7 +225,7 @@ class Dataset():
 			case):
 
   
-  coord_path   = "./" + data+"_data" + "/" + case + "/"
+  coord_path   = "./" + data+"_data_"+str(self.grid)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/"
   xyz = np.loadtxt(coord_path+"xyz.txt")
 
   return xyz
@@ -238,13 +238,13 @@ class Dataset():
   x_addrs = []
   y_addr = []
  
-  train_x_path   = "./" + data+"_data" + "/" + case + "/input/*"
+  train_x_path   = "./" + data+"_data_"+str(self.grid)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/input/*"
   train_x_addrs  = sorted(glob.glob(train_x_path))
   train_x_addrs  = list(train_x_addrs)
   train_x_addrs.sort(key=natural_keys)
   x_addrs.append(train_x_addrs)
  
-  train_y_path   = "./" + data+"_data" + "/" + case + "/output/*"
+  train_y_path   = "./" + data+"_data_"+str(self.grid)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/output/*"
   train_y_addr  = sorted(glob.glob(train_y_path))
   train_y_addr  = list(train_y_addr)
   train_y_addr.sort(key=natural_keys)
@@ -674,7 +674,6 @@ class DatasetNoWarmup(Dataset):
   
     while (case_number !=case_end) :
 
-     if (np.mod(case_number,10)!=0): 
       case = "case_"+str(case_number)
       print("case number is ", case)
   
@@ -707,10 +706,8 @@ class DatasetNoWarmup(Dataset):
          
         hf.close()
    
-     else:
-      print("No case ",case_number)
   
-     case_number=case_number+1
-     count=count+1  
+      case_number=case_number+1
+      count=count+1  
   
     return 
