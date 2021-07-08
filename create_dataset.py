@@ -3,7 +3,7 @@ sys.path.insert(0, './src')
 
 import argparse
 
-from Dataset import Dataset
+from Dataset import *
 
 parser = argparse.ArgumentParser(description='dataset command line')
 
@@ -30,7 +30,7 @@ elif (args.turb==0 and args.coordiantes == 0):
 
 size = [args.height,args.width,channels]
 
-ds = Dataset(size=size, 
+ds = DatasetNoWarmup(size=size, 
              grid = args.grid,
              is_turb=args.turb,
 	     add_coordinates = args.coordinates)

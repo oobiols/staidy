@@ -3,7 +3,7 @@ import h5py
 import glob
 import openfoamparser as Ofpp
 import numpy as np
-import tensorflow as tf
+#import tensorflow as tf
 
 from settings import natural_keys
 
@@ -94,19 +94,20 @@ class Dataset():
       batch_size = tf.shape(images)[0]
       channels = tf.shape(images)[3]
 
-      patches = tf.image.extract_patches(
-            images=images,
-            sizes=[1, patch_size[0], patch_size[1], 1],
-            strides=[1, patch_size[0], patch_size[1], 1],
-            rates=[1, 1, 1, 1],
-            padding="VALID",
-        )
-
-      patch_dims = patches.shape[-1]
-      patches = tf.reshape(patches, [batch_size, -1, patch_dims])
-      patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],patch_size[0], patch_size[1],channels])
-      patches = patches.numpy()
-
+      patches = 0
+#      patches = tf.image.extract_patches(
+#            images=images,
+#            sizes=[1, patch_size[0], patch_size[1], 1],
+#            strides=[1, patch_size[0], patch_size[1], 1],
+#            rates=[1, 1, 1, 1],
+#            padding="VALID",
+#        )
+#
+#      patch_dims = patches.shape[-1]
+#      patches = tf.reshape(patches, [batch_size, -1, patch_dims])
+#      patches = tf.reshape(patches, [patches.shape[0],patches.shape[1],patch_size[0], patch_size[1],channels])
+#      patches = patches.numpy()
+#
       return patches
 
 
@@ -126,8 +127,6 @@ class Dataset():
    y = h5f.get('y')
    y = np.asarray(y)
 
-   x[:,:,:,3] = 1e-3*x[:,:,:,3]/1e-4
-   y[:,:,:,3] = 1e-3*y[:,:,:,3]/1e-4
 
    if self.add_coordinates==False:
     x = x[:,:,:,0:4]
@@ -294,11 +293,7 @@ class Dataset():
   Uy = self.map_domain(Uy)
   p  = self.map_domain(p)
 
-  Ux = Ux.reshape([Ux.shape[0], Ux.shape[1], 1])
-  Uy = Uy.reshape([Uy.shape[0], Uy.shape[1], 1])
-  p =  p.reshape( [p.shape[0],  p.shape[1],  1])
-
-  if (self.grid == "channel_flow"):
+  if (self.grid == "channelflow"):
 
     height = self.height
     Ux_avg = Ux[int(height/2),0,0]
@@ -315,23 +310,20 @@ class Dataset():
   Uy /= uavg
   p /= uavg*uavg
 
-  data    = np.concatenate( (Ux, Uy) , axis=2)  
-  data    = np.concatenate( (data, p), axis=2)
+  data    = np.stack( (Ux, Uy) , axis=-1)  
+  data    = np.stack( (data, p), axis=-1)
 
   if (self.is_turb):
    nuTilda = self.map_domain(nuTilda)
-   nuTilda = nuTilda.reshape([nuTilda.shape[0], nuTilda.shape[1], 1])
    nuTilda /= nuTildaAvg
-   data   = np.concatenate( ( data, nuTilda), axis=2) 
+   data   = np.stack( ( data, nuTilda), axis=-1) 
 
   if (self.add_coordinates):
     x,z = self.xyz[:,0], self.xyz[:,2]
     x,z = self.map_domain(x), self.map_domain(z)
-    x = x.reshape([x.shape[0], x.shape[1],1])
-    z = z.reshape([z.shape[0], z.shape[1],1])
 
-    data = np.concatenate ( (data,x), axis=2)  
-    data = np.concatenate ( (data,z), axis=2)
+    data = np.stack ( (data,x), axis=-1)  
+    data = np.stack ( (data,z), axis=-1)
 
 
   return np.float16(data)
@@ -555,7 +547,7 @@ class Dataset():
     ret = np.append(ret,b_2, axis=1)
     ret = np.append(ret,b_1, axis=1)
 
-  elif (self.grid == "channel_flow"):
+  elif (self.grid == "channelflow"):
 
     ret = arr.reshape( [self.height, self.width] )
 
@@ -564,6 +556,7 @@ class Dataset():
 
 class DatasetNoWarmup(Dataset):
   def __init__(self,**kwargs):
+
     super(DatasetNoWarmup, self).__init__(**kwargs)
     self.add_coordinates=True
     self.shape_input=[None,self.height,self.width,self.channels]
@@ -593,82 +586,63 @@ class DatasetNoWarmup(Dataset):
                       addr,
                       pos):
    
-   if pos == "output":
- 
+    height = self.height
+    width = self.width
     Ux, Uy, p, nuTilda = self.__get_domain(addr,pos)
+    x,z = self.xyz[:,0], self.xyz[:,2]
  
-    Ux = self.map_domain(Ux)
-    Uy = self.map_domain(Uy)
-    p  = self.map_domain(p)
+    Ux      = self.map_domain(Ux)
+    Uy      = self.map_domain(Uy)
+    p       = self.map_domain(p)
+    nuTilda = self.map_domain(nuTilda)
+    x       = self.map_domain(x)
+    z       = self.map_domain(z)
+     
+    if (self.grid == "channelflow"):
  
-    Ux = Ux.reshape([Ux.shape[0], Ux.shape[1], 1])
-    Uy = Uy.reshape([Uy.shape[0], Uy.shape[1], 1])
-    p =  p.reshape( [p.shape[0],  p.shape[1],  1])
- 
-    if (self.grid == "channel_flow"):
- 
-      height = self.height
-      Ux_avg = Ux[int(height/2),0,0]
-      Uy_avg = Uy[int(height/2),0,0]
-      uavg = Ux_avg
-      nuTildaAvg = 1e-4
-  
+      Ux_avg = Ux[int(height/2),0]
+      Uy_avg = Uy[int(height/2),0]
+      uref = Ux_avg
+      nutildaref = 1e-4
+      Dh = 1
+      visc = 1e-4
+      Re = uref *  Dh / visc   
+
+    elif (self.grid == "flatplate"):
+
+      Ux_avg = Ux[int(height/2),0]
+      uref = Ux_avg
+      nutildaref = 1e-4
+      Dh = 1
+      visc = 1e-6
+      Re = uref * Dh / visc
+
+
     elif (self.grid == "ellipse"):
   
-      uavg = 0.6
-      nuTildaAvg = 1e-3
+      uref = Ux[height,int(width/2)]
+      nutildaref = 1e-4
+      Dh = 1
+      visc = 1e-6
+      Re = uref * Dh / visc
   
-    Ux /= uavg
-    Uy /= uavg
-    p /= uavg*uavg
-  
-    data    = np.concatenate( (Ux, Uy) , axis=2)  
-    data    = np.concatenate( (data, p), axis=2)
-  
-    if (self.is_turb):
-     nuTilda = self.map_domain(nuTilda)
-     nuTilda = nuTilda.reshape([nuTilda.shape[0], nuTilda.shape[1], 1])
-     nuTilda /= nuTildaAvg
-     data   = np.concatenate( ( data, nuTilda), axis=2) 
-  
-    x,z = self.xyz[:,0], self.xyz[:,2]
-    x,z = self.map_domain(x), self.map_domain(z)
-    x = x.reshape([x.shape[0], x.shape[1],1])
-    z = z.reshape([z.shape[0], z.shape[1],1])
 
-    data    = np.concatenate( (data, x) , axis=2)  
-    data    = np.concatenate( (data, z) , axis=2)  
- 
-   elif pos == "input":
-   
-    u, v, _, _ = self.__get_domain(addr,pos)
- 
-    x,z = self.xyz[:,0], self.xyz[:,2]
-    x,z = self.map_domain(x), self.map_domain(z)
-    x = x.reshape([x.shape[0], x.shape[1],1])
-    z = z.reshape([z.shape[0], z.shape[1],1])
+    Ux /= uref
+    Uy /= uref
+    p /= uref*uref
+    nuTilda /= nutildaref
+    x /= Dh
+    z /= Dh
 
-    x /= 500
-    z /= 500
+    data = np.stack( (Ux,Uy,p,nuTilda,x,z), axis=-1) 
   
-    U = np.sqrt(u*u+v*v)
-    alpha = np.arctan(v/u)
-    alpha = alpha/np.pi*180
-    Re = np.full_like(x,fill_value=U)
-    alpha = np.full_like(x,fill_value=alpha)
-  
-    data    = np.concatenate( (x, z) , axis=2)  
-    data    = np.concatenate( (data, Re) , axis=2)  
-    data    = np.concatenate( (data, alpha) , axis=2)  
-  
-   return np.float16(data)
+    return np.float16(data)
  
   def __get_domain(self,
                     addr, 
 		pos):
 
 
-   if pos =="output":
 
     U = np.float16(Ofpp.parse_internal_field(addr+"/U"))
     p = np.float16(Ofpp.parse_internal_field(addr+"/p"))
@@ -681,17 +655,8 @@ class DatasetNoWarmup(Dataset):
     Ux          = U[:,0]
     Uy          = U[:,2]
 
-   elif pos=="input":
 
-    p = None
-    nuTilda = None
-    U = Ofpp.parse_boundary_field(addr+'/U')
-    U=U[b'top']
-    U=U[b'freestreamValue']
-    Ux = U[0]
-    Uy = U[2]
-
-   return Ux, Uy, p, nuTilda
+    return Ux, Uy, p, nuTilda
 
   def create_dataset(self,
                     first_case=1,
