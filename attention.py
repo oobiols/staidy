@@ -67,9 +67,8 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
-masking=args.masking
 
-X_train = np.load('./train_input_large.npy')
+X_train = np.load('./datasets/channelflow_LR.npy')
 print(X_train.shape)
 
 
@@ -81,64 +80,60 @@ name = "epochs_"+str(args.epochs)+\
        "_arch_"+str(args.architecture)+\
        args.modelname
 
-factor = 16
-f = int(np.sqrt(factor))
-
 if args.architecture == "deep":
  filters=[4,8,16]
 if args.architecture == "shallow":
  filters = [4,8]
 
-if args.modelname =="attention":
-  nsNet =  NSAttention(image_size = [args.height,args.width,6],
-                       factor = f,
-		       filters=filters,
-		       strides=args.strides,
-	               kernel_size = args.kernelsize,
-                       num_attention=1,
-		       attention=True,
-		       beta=[args.lambdacont,args.lambdamomx,args.lambdamomz])
+nsNet =  NSSelfAttention(
+               patch_size = [4,16],
+               filters=[16,32],
+               kernel_size = 5,
+               num_attention = 1,
+               num_heads=2,
+               proj_dimension=32
+               )
 
+#nsNet.build(input_shape=[(None,32,128,4),(None,32,128,2)])
+optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
+nsNet.compile(optimizer=optimizer,
+	      run_eagerly=False)
 
-  optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
-  nsNet.compile(optimizer=optimizer,
-	      run_eagerly=True)
-else: 
- nsNet = 1
-
-nsCB=[]
-
-
-if (args.reducelr):
- nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
-						 factor=0.8,\
-						 min_delta=1e-3,\
-      						 patience=args.patience,
-						 min_lr=1e-7)
-      ]
-
-
-nsCB = [keras.callbacks.EarlyStopping(monitor="val_loss",\
-					min_delta=1e-5,\
-					patience = args.patience,\
-					    verbose=1,\
-					    mode="auto",\
-					    baseline=None,\
-					    restore_best_weights=False,
-)]
-
-X_val = np.load('./ellipse03.npy')
-Y_val = X_val
-
+#nsCB=[]
+#
+#
+#if (args.reducelr):
+# nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
+#						 factor=0.8,\
+#						 min_delta=1e-3,\
+#      						 patience=args.patience,
+#						 min_lr=1e-7)
+#      ]
+#
+#
+#nsCB = [keras.callbacks.EarlyStopping(monitor="val_loss",\
+#					min_delta=1e-5,\
+#					patience = args.patience,\
+#					    verbose=1,\
+#					    mode="auto",\
+#					    baseline=None,\
+#					    restore_best_weights=False,
+#)]
+#
+#X_val = np.load('./ellipse03.npy')
+#Y_val = X_val
+#
+nsCB = []
 history = nsNet.fit(x=X_train,
                     y=X_train,
-	            batch_size=args.batchsize,
-                    validation_data=(X_val,Y_val),\
+                    steps_per_epoch = 3,
+                    validation_data=(X_train,X_train),\
+                    validation_steps = 1,
                     initial_epoch=0, 
                     epochs=args.epochs,\
                     verbose=1, 
                	    callbacks=nsCB,
               	    shuffle=True)
 
-plot.history(history,name=name)
-nsNet.save('./models/'+name)
+#plot.history(history,name=name)
+#nsNet.save('./models/'+name)

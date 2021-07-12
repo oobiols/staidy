@@ -18,6 +18,105 @@ class PositionEmbedding(keras.layers.Layer):
 
 
 #class Masking
+class ResidualBlock(keras.layers.Layer):
+    def __init__(self,
+                 filters=16,
+                 kernel_size=5,
+                 **kwargs):
+
+        super(ResidualBlock,self).__init__(**kwargs)
+        
+        self.Conv1 = keras.layers.Conv2D(filters=filters,
+                                         kernel_size=(1,1),
+                                         strides=(1,1),
+                                         activation=tf.nn.leaky_relu,
+                                         padding="same")
+
+        self.BN1 = keras.layers.BatchNormalization(axis=-1)
+
+        self.Conv2 = keras.layers.Conv2D(filters=filters,
+                                         kernel_size=(kernel_size,kernel_size),
+                                         strides=(1,1),
+                                         activation=tf.nn.leaky_relu,
+                                         padding="same")
+
+        self.BN2 = keras.layers.BatchNormalization(axis=-1)
+
+        self.Conv3 = keras.layers.Conv2D(filters=filters,
+                                         kernel_size=(1,1),
+                                         strides=(1,1),
+                                         activation=tf.nn.leaky_relu,
+                                         padding="same")
+
+        self.BN3 = keras.layers.BatchNormalization(axis=-1)
+
+        self.Add = keras.layers.Add()
+
+    def call(self,inputs):
+
+       x1 = self.Conv1(inputs)
+       #x = self.BN1(x1)dd
+       x = self.Conv2(x1)
+       #x = self.BN2(x)
+       x = self.Conv3(x)
+       #x = self.BN3(x)
+       x = self.Add([x,x1])
+
+       return x
+
+class Mlp(keras.layers.Layer):
+    def __init__(self,
+                 hidden_units = [10,10],
+                 dropout_rate = 0,
+                 **kwargs):
+
+        super(Mlp,self).__init__(**kwargs)
+        
+        self._layers = []
+
+        for i in hidden_units:    
+            self._layers.append( keras.layers.Dense(i,activation=tf.nn.leaky_relu))
+            self._layers.append( keras.layers.Dropout(dropout_rate))
+
+    def call(self,inputs):
+        x = inputs
+        for layer in self._layers:
+            x  = layer(x)
+        return x
+
+
+class MultiHeadAttention(keras.layers.Layer):
+
+    def __init__(self,
+                 num_heads = 2,
+                 proj_dimension = 32,
+                 **kwargs):
+
+        super(MultiHeadAttention,self).__init__(**kwargs)
+        
+        self.transformer_units=[proj_dimension*2,proj_dimension]
+
+        self.layernorm_1 = keras.layers.LayerNormalization(epsilon=1e-6)
+        self.mha         = keras.layers.MultiHeadAttention(num_heads=num_heads, 
+                                                    key_dim=proj_dimension, 
+                                                    dropout=0.1) 
+        self.add_1         = keras.layers.Add()
+        self.layernorm_2   = keras.layers.LayerNormalization(epsilon=1e-6)
+        self.mlp           = Mlp(hidden_units=self.transformer_units,dropout_rate=0)
+        self.add_2         = keras.layers.Add()
+
+
+    def call(self,inputs):
+
+       x = self.layernorm_1(inputs)
+       attention_output, attention_scores= self.mha(x,x,return_attention_scores=True)
+       x2 = self.add_1([attention_output,inputs])
+       x3 = self.layernorm_2(x2)
+       x3 = self.mlp(x2)
+       x  = self.add_2([x3,x2])
+
+       return x , attention_scores
+
 
 class ResidualBlockAttentionModule(keras.layers.Layer):
     def __init__(self,
@@ -90,197 +189,137 @@ class ChannelAttentionModule(keras.layers.Layer):
       
        return x
 
-class NSAttention(NSModelPinn):
+class NSSelfAttention(NSModelPinn):
   def __init__(self, 
-               image_size=[64,256,6],
-               filters=[4,16,64],
-               factor = 4,
-               strides= 2,
+               image_size = [32,128,6],
+               patch_size = [4,16],
+               filters=[16,32],
                kernel_size = 5,
                num_attention = 1,
-               attention = True,
+               num_heads=2,
+               proj_dimension=32,
                **kwargs):
 
-    super(NSAttention, self).__init__(**kwargs)
-    self.f = factor
-    self.HR_size = image_size
-    self.LR_size = [int(image_size[0]/self.f),int(image_size[1]/self.f)]
-    self.num_attention = num_attention
-    self.attention = attention
-    self.feature_extractor = []
-    self.reconstruction = []
-    self.RBAM = []
+    super(NSSelfAttention, self).__init__(**kwargs)
+
+    rows_image    = image_size[0]
+    columns_image = image_size[1]
+
+
+    rows_patch    = patch_size[0]
+    columns_patch = patch_size[1]
+
+    self._channels = image_size[2]
+    self._pixels_patch = rows_patch*columns_patch
+    self._n_patch_y = rows_image//rows_patch
+    self._n_patch_x = columns_image//columns_patch
+
 
     self.k = kernel_size
-    self.s = strides
+    self._res_blocks = []
+    self._self_attention = []
+    self._n_res_blocks = len(filters)
+    self._num_heads = num_heads
+    self._proj_dimension = proj_dimension
+    self._rows_patch = rows_patch
+    self._columns_patch = columns_patch
 
-    self.upsample = keras.layers.UpSampling2D(size=(self.f,self.f),interpolation="bilinear")
-    self.concatenate_coordinates = keras.layers.Concatenate(axis=-1)
-
-  
     for i in filters:
-        self.feature_extractor.append(keras.layers.Conv2D(filters=i,
-                                             kernel_size=(self.k,self.k),
-                                             strides=(self.s,self.s),
-						padding="same",
-                                             activation=tf.nn.leaky_relu))
+        self._res_blocks.append(ResidualBlock(i,kernel_size=self.k))
+
     
-    for i in reversed(filters):
-        self.reconstruction.append(keras.layers.Conv2DTranspose(filters=i,           
-                                             kernel_size=(self.k,self.k),
-                                             strides=(self.s,self.s),
-					     padding="same",
-                                             activation=tf.nn.leaky_relu))
- 
-    fil = filters[-1]  
-
-    n = len(filters)
-    for i in range(n):
-         self.RBAM.append(ResidualBlockAttentionModule( f=filters[i],
-                                                        r=4,
-                                                        height=self.HR_size[0],
-                                                        width=self.HR_size[1]))
+    self.patches = keras.layers.Conv2D(filters=proj_dimension,
+                                                kernel_size = patch_size,
+                                                strides = patch_size,
+                                                activation = tf.nn.leaky_relu)
 
 
+    self.reshape = keras.layers.Reshape((-1,proj_dimension))
+    for _ in range(num_attention):
+        self._self_attention.append(MultiHeadAttention(num_heads=self._num_heads,proj_dimension=self._proj_dimension))
+
+   
+    self.reshape_1 = keras.layers.Reshape((self._n_patch_y*self._n_patch_x,self._pixels_patch,self._channels))
+    self.conv = keras.layers.Conv2D
   def call(self, inputs):
 
-    low_res_true = inputs[0]
-    coordinates = inputs[1]/500
+    features = tf.concat([inputs[0],inputs[1]],axis=-1)
+    for layer in self._res_blocks:
+     features = layer(features)
 
-    up = self.upsample(low_res_true)
-    x1 = self.concatenate_coordinates([up,coordinates])
-    for i,layer in enumerate(self.feature_extractor):
-        x1 = layer(x1)
-        x1, spatial = self.RBAM[i](x1)
-       
+
+    enc_patches = self.patches(features)
+    enc_patches = self.reshape(enc_patches)
     
-    x2 = x1
-   # if self.attention == True:
-   #  for layer in self.RBAM:
-   #     x2 , spatial_attended_map = layer(x2)
 
-    x3 = x2
-    for layer in self.reconstruction:
-        x3 = layer(x3)
+    for layer in self._self_attention:
+     enc_patches , scores = layer(enc_patches)
 
-
-    high_res_pred = x3
-    low_res_pred = tf.image.resize(high_res_pred,
-                                   size = self.LR_size,
-                                   method='bilinear',
-                                   preserve_aspect_ratio = False)
-
-    return high_res_pred , low_res_pred, spatial
+    r_scores = tf.reduce_sum(scores,axis=1,keepdims=False)
+    r_scores = tf.reduce_sum(r_scores,axis=1,keepdims=False)
+    r_scores = tf.divide(tf.subtract(r_scores,tf.reduce_min(r_scores)),tf.subtract(tf.reduce_max(r_scores),tf.reduce_min(r_scores)))
+    bin_of_patch = tf.histogram_fixed_width_bins(r_scores, value_range=[0.0,1.0], nbins=3)[0]
+    hi = tf.less(bin_of_patch,1)
+    hi = tf.expand_dims(hi,axis=1)
+    zeroidx = tf.where(hi)[:,0]
+    patches = tf.gather(r_scores,zeroidx,axis=1)
 
 
-  def compute_data_pde_losses(self, high_res_true, high_res_xz,labels):
+   
 
-    low_res_true = tf.image.resize( high_res_true,
-                                    size=self.LR_size,
-                                    method="bilinear",
-                                    preserve_aspect_ratio=True)
+    
+    return enc_patches
+
+
+  def compute_data_pde_losses(self, low_res_true, low_res_xz,labels):
+
 
     with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
-      tape2.watch(high_res_xz)
+      tape2.watch(low_res_xz)
       with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
-        tape1.watch(high_res_xz)
+        tape1.watch(low_res_xz)
 
-        high_res_pred , low_res_pred, _ = self([low_res_true,high_res_xz])
-
-        u_pred_LR       = low_res_pred[:,:,:,0]
-        v_pred_LR       = low_res_pred[:,:,:,1]
-        p_pred_LR       = low_res_pred[:,:,:,2]
-        nu_pred_LR       = low_res_pred[:,:,:,3]
-
-        u_pred_HR       = high_res_pred[:,:,:,0]
-        v_pred_HR       = high_res_pred[:,:,:,1]
-        p_pred_HR       = high_res_pred[:,:,:,2]
-        nu_pred_HR      = high_res_pred[:,:,:,3]
-
-      # 1st order derivatives
-      u_grad   = tape1.gradient(u_pred_HR, high_res_xz)
-      v_grad   = tape1.gradient(v_pred_HR, high_res_xz)
-#      p_grad   = tape1.gradient(p_pred_HR, high_res_xz)
-      u_x, u_z = u_grad[:,:,:,0], u_grad[:,:,:,1]
-      v_x, v_z = v_grad[:,:,:,0], v_grad[:,:,:,1]
-#      p_x, p_z = p_grad[:,:,:,0], p_grad[:,:,:,1]
-      del tape1
-
-    # 2nd order derivatives
-#    u_xx = tape2.gradient(u_x, high_res_xz)[:,:,:,0]
-#    u_zz = tape2.gradient(u_z, high_res_xz)[:,:,:,1]
-#    v_xx = tape2.gradient(v_x, high_res_xz)[:,:,:,0]
-#    v_zz = tape2.gradient(v_z, high_res_xz)[:,:,:,1]
-    del tape2
-
-    uMse = tf.reduce_mean(tf.square(u_pred_LR - low_res_true[:,:,:,0])) \
-           + tf.reduce_mean(tf.square(u_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,0]))\
-           + tf.reduce_mean(tf.square(u_pred_HR[:,:,0]-high_res_true[:,:,0,0]))\
-           + tf.reduce_mean(tf.square(u_pred_HR[:,:,-1]-high_res_true[:,:,-1,0]))
-
-    vMse = tf.reduce_mean(tf.square(v_pred_LR - low_res_true[:,:,:,1])) \
-           + tf.reduce_mean(tf.square(v_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,1]))\
-           + tf.reduce_mean(tf.square(v_pred_HR[:,:,0]-high_res_true[:,:,0,1]))\
-           + tf.reduce_mean(tf.square(v_pred_HR[:,:,-1]-high_res_true[:,:,-1,1]))
-
-    pMse = tf.reduce_mean(tf.square(p_pred_LR - low_res_true[:,:,:,2])) \
-           + tf.reduce_mean(tf.square(p_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,2]))\
-           + tf.reduce_mean(tf.square(p_pred_HR[:,:,0]-high_res_true[:,:,0,2]))\
-           + tf.reduce_mean(tf.square(p_pred_HR[:,:,-1]-high_res_true[:,:,-1,2]))
-
-    nuMse = tf.reduce_mean(tf.square(nu_pred_LR - low_res_true[:,:,:,3])) \
-           + tf.reduce_mean(tf.square(nu_pred_HR[:,59:64,:]-high_res_true[:,59:64,:,3]))\
-           + tf.reduce_mean(tf.square(nu_pred_HR[:,:,0]-high_res_true[:,:,0,3]))\
-           + tf.reduce_mean(tf.square(nu_pred_HR[:,:,-1]-high_res_true[:,:,-1,3]))
+        enc_patches = self([low_res_true,low_res_xz])
 
 
-    # pde error, 0 continuity, 1-2 NS
-    pde0    = u_x + v_z
-    z = tf.zeros(tf.shape(pde0),dtype=tf.float32)
-    pde0Mse    = tf.reduce_mean(tf.square(pde0-z))
-
- #   pde1    = u_pred_HR*u_x + v_pred_HR*u_z + p_x - (0.01+ nu_pred_HR)*(1/(6000*500))*(u_xx + u_zz)
- #   pde1Mse    = tf.reduce_mean(tf.square(pde1-z))
-    pde1Mse = 0 
-
-
-   # pde2    = u_pred_HR*v_x + v_pred_HR*v_z + p_z - (0.01 + nu_pred_HR)*(1/6000)*(v_xx + v_zz)
-   # pde2Mse    = tf.reduce_mean(tf.square(pde2-z))
-    pde2Mse = 0 
-
+    uMse = tf.reduce_mean(enc_patches)
+    vMse = 0
+    pMse = 0
+    nuMse = 0
+    pde0Mse = 0 
+    pde1Mse = 0
+    pde2Mse = 0
     return uMse, vMse, pMse, nuMse, pde0Mse, pde1Mse, pde2Mse
+
 
   def test_step(self, data):
 
     inputs = data[0]
  
-    high_res_true = inputs[:,:,:,0:4]
-    high_res_xz = inputs[:,:,:,4:6]
+    low_res_true = inputs[:,:,:,0:4]
+    low_res_xz = inputs[:,:,:,4:6]
 
-    low_res_true = tf.image.resize(high_res_true,
-                                    size=self.LR_size,
-                                    method="bilinear",
-                                    preserve_aspect_ratio=True)
 
-    high_res_pred , _ , _ = self([low_res_true,high_res_xz])
+    #scores = self([low_res_true,low_res_xz])
 
-    u_pred_HR       = high_res_pred[:,:,:,0]
-    v_pred_HR       = high_res_pred[:,:,:,1]
-    p_pred_HR       = high_res_pred[:,:,:,2]
-    nu_pred_HR       = high_res_pred[:,:,:,3]
 
-    uMse = tf.reduce_mean(tf.square(u_pred_HR -   high_res_true[:,:,:,0]))
-    vMse = tf.reduce_mean(tf.square(v_pred_HR -   high_res_true[:,:,:,1]))
-    pMse = tf.reduce_mean(tf.square(p_pred_HR -   high_res_true[:,:,:,2]))
-    nuMse = tf.reduce_mean(tf.square(nu_pred_HR - high_res_true[:,:,:,3]))
+#    uMse = tf.reduce_mean(tf.square(u_pred_HR -   high_res_true[:,:,:,0]))
+#    vMse = tf.reduce_mean(tf.square(v_pred_HR -   high_res_true[:,:,:,1]))
+#    pMse = tf.reduce_mean(tf.square(p_pred_HR -   high_res_true[:,:,:,2]))
+#    nuMse = tf.reduce_mean(tf.square(nu_pred_HR - high_res_true[:,:,:,3]))
 
       # replica's loss, divided by global batch size
+    uMse = 0
+    vMse = 0 
+    pMse = 0
+    nuMse = 0
     data_loss  = 0.5*(uMse   + vMse )#  + pMse + nuMse) 
 
     loss = data_loss
 
     #loss += tf.add_n(self.losses)
     # track loss and mae
+    
     self.validMetrics['loss'].update_state(loss)
     self.validMetrics['data_loss'].update_state(data_loss)
     contMse=0.0
@@ -303,25 +342,25 @@ class NSAttention(NSModelPinn):
     inputs = data[0]
     labels = data[1]
  
-    high_res_true = inputs[:,:,:,0:4]
-    high_res_xz = inputs[:,:,:,4:6] 
+    low_res_true = inputs[:,:,:,0:4]
+    low_res_xz = inputs[:,:,:,4:6] 
     
 
     with tf.GradientTape(persistent=True) as tape0:
       # compute the data loss for u, v, p and pde losses for
       # continuity (0) and NS (1-2)
       uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
-        self.compute_data_pde_losses(high_res_true, high_res_xz,labels)
+        self.compute_data_pde_losses(low_res_true, low_res_xz,labels)
       # replica's loss, divided by global batch size
       data_loss  = 0.5*(uMse   + vMse)# + pMse + nuMse) 
 
       
-      beta_cont = int(data_loss.numpy()/contMse.numpy())
+      #beta_cont = int(data_loss.numpy()/contMse.numpy())
       #beta_momx = int(data_loss/momxMse.numpy())
       beta_momx = 0
+      beta_cont = 0
 
       loss = data_loss + self.beta[0]*beta_cont*contMse + self.beta[1]*beta_momx*momxMse + self.beta[2]*momzMse
-
     if self.saveGradStat:
       uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
       vMseGrad    = tape0.gradient(vMse,    self.trainable_variables)
