@@ -47,9 +47,11 @@ If you believe this repository can help the development of your research:
 ### 1. Pre-prerequisits
 
 This repository relies on:
-a) The user has `git`, `python`, and `pip` commands readily available. 
+a) The user has `git`, `python`, and `pip` commands readily available.
+
 b) The Tensorflow API. The training experiments were conducted with Tensorflow 2.4 backend. Any flavour for installing the Tensorflow API is welcome (pip, conda, docker, ...). This might cause different training/inference performance values. 
-c) 
+
+c) OpenFOAM v8 to evaluate the performance of both CFDNet and SURFNet.
 
 ### 2. Download this repository
 First, download this repository:
