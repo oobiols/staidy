@@ -4,11 +4,12 @@ By: Octavi Obiols-Sales, Abhinav Vishnu, Nicholas Malaya, and [Aparna Chandramow
 CFDNet is a deep learning-based accelerator for 2D, coarse-grid, steady-state simulations. SURFNet is an extension of CFDNet, for super-resolution of turbulent flows with transfer learning. SURFNet accelerates fine-grid problems while keeping most data collection at coarse grids.
 
 ### Why you might be interested in this repository
-In this README file, you will find, first, an overview on CFDNet and SURFNet. And below, you will find different commands that will allow you to:
-1. Generate a .h5 training and validation dataset file from OpenFOAM simulation data. An outline on the shape of the images in the dataset and the overall dataset structure can be found in the [paper](https://dl.acm.org/doi/pdf/10.1145/3392717.3392772?casa_token=2Vx83VWZAWwAAAAA:BauwuqoOjxXcjrpfsI1MwemUxyTb3rIfdLnf1zkUX66YCtUmdUNYWJjqf0TPYAIPDhDRX0YhwQ_0), but is also detailed [here](./datasets/datasets.md). 
-2. Train the CNN with the dataset that we just generated, and create a _coarse model_.
-3. Transfer learn the _coarse model_ to high-resolution inputs.
-4. Use the already trained models and reproduce the results in the paper. For such, you will need OpenFOAM v8 installed. See more [here](./openfoam/).
+In this README file, you will find: 
+1. An overview on CFDNet and SURFNet.
+2. The dataset used to train and valdiate the _coarse model_ in the SURFNet paper and the command to train and reproduce the training results.
+3. Use the already trained models and reproduce the performance results in Table III of the paper. 
+
+Please note that this project is dependent of the physics solver (simpleFoam solver in OpenFOAM). For Step (3), one needs to have OpenFOAM v8 installed. Please also note that the performance results in the paper were obtained when OpenFOAM v8 was under [development](https://openfoam.org/download/8-linux/). Hence, the experiments were conducted using the [Singularity](https://develop.openfoam.com/Development/openfoam/-/issues/1483) image for OpenFOAM v8. New OpenFOAM releases/older OpenFOAM versions/OpenFOAM docker images will not reproduce to the exact same number of iterations and speedup results. However, differences should not be significant and speedups of the same order of magnitude should be observed.
 
 ### CFDNet: accelerating steady-state simulations
 CFDNet was published at the International Conference in Supercomputing (2020), and the paper can be found [here](https://dl.acm.org/doi/pdf/10.1145/3392717.3392772?casa_token=2Vx83VWZAWwAAAAA:BauwuqoOjxXcjrpfsI1MwemUxyTb3rIfdLnf1zkUX66YCtUmdUNYWJjqf0TPYAIPDhDRX0YhwQ_0).
@@ -41,46 +42,43 @@ If you believe this repository can help the development of your research:
 }
 ```
 
-# How to use
+## Install the repository and the required software
 
-## 1. Download this repository
+### 1. Pre-prerequisits
+
+This repository relies on:
+
+a) The user has `git`, `python`, and `pip` commands readily available.
+
+b) The Tensorflow API. The training experiments were conducted with Tensorflow 2.4 backend. Any flavour for installing the Tensorflow API is welcome (pip, conda, docker, ...). This might cause different training/inference performance values. 
+
+c) OpenFOAM v8 to evaluate the performance of both CFDNet and SURFNet.
+
+### 2. Download this repository
 First, download this repository:
 
 ```
 git clone https://github.com/oobiols/staidy.git
 ```
-## 2. Install the requirements
+### 2. Install required python libraries
 This repository works with Python and calls several libraries that need to be installed:
 
 ```
 pip install -r requirements.txt
 ```
 
-## 2. Generate a training dataset from simulation data
+## Reproduce SURFNet's results
 
+### 1. Train the coarse model
+Download the _training dataset_ and the _validation dataset_ from the following publicly available Google Drive link:
 
-Run
 ```
-python create_dataset.py --type train --turb 1 --name coarse_grid --height 32 --width 128 --grid ellipse
-```
-
-This command will create a directory named `h5_datasets`, where you will find a `.h5` file. For a better understanding of what this and the next command is doing, please see [here](./datasets/datasets.md).
-
-## 3. Generate a validation dataset from simulation data
-
-
-Run
-```
-python create_dataset.py --type validation --turb 1 -name validation -he 32 -w 128 -g ellipse -lc 1
+gdown https://drive.google.com/uc?id=1ig8gHcO6S7nM6_sC3w1tLsUh0_IhmUcI
 ```
 
+After the download, you can start the training. Please note that the code will use all the available GPUs by default:
 
-## 4. Train the CNN 
-
-Train the CNN with the dataset we just generated
-
-Run
 ```
-python train.py -he 32 -w 128 -e 10
+python coarse_model.py -bs 64 -lrt 5e-4 -e 1000 
 ```
-Each image in the input and the output of the CNN is of size 32x128. We train for 10 epochs.
+The training is conducted with the EarlyStopping callback from Keras. 
