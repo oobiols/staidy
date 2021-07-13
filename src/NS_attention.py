@@ -197,8 +197,8 @@ class NSSelfAttention(NSModelPinn):
                kernel_size = 5,
                num_attention = 1,
                num_heads=2,
-               proj_dimension=32,
-               nbins=3,
+               proj_dimension=256,
+               nbins=4,
                **kwargs):
 
     super(NSSelfAttention, self).__init__(**kwargs)
@@ -220,6 +220,9 @@ class NSSelfAttention(NSModelPinn):
     self.k = kernel_size
     self._res_blocks = []
     self._self_attention = []
+    self._output_deconv = []
+
+
     self._n_res_blocks = len(filters)
     self._num_heads = num_heads
     self._proj_dimension = proj_dimension
@@ -241,12 +244,16 @@ class NSSelfAttention(NSModelPinn):
         self._self_attention.append(MultiHeadAttention(num_heads=self._num_heads,proj_dimension=self._proj_dimension))
 
    
-    self.reshape_1 = keras.layers.Reshape((-1,2,8, 4))
-    self.deconv_1 = keras.layers.Conv3DTranspose(filters=4,
-						kernel_size=(1,4,4),
-						strides=(1,4,4),
+    self.patch_reshape = keras.layers.Reshape((-1,rows_patch,columns_patch, 4))
+    for _ in range(1,self._n_bins):
+
+     self._output_deconv.append( keras.layers.Conv3DTranspose(filters=4,
+						kernel_size=(1,2,2),
+						strides=(1,2,2),
 						activation = tf.nn.leaky_relu,
 						padding="same")
+
+                                )
   def call(self, inputs):
 
     features = tf.concat([inputs[0],inputs[1]],axis=-1)
@@ -259,18 +266,67 @@ class NSSelfAttention(NSModelPinn):
     for layer in self._self_attention:
      enc_patches , scores = layer(enc_patches)
 
-    r_scores = tf.reduce_sum(tf.reduce_sum(scores,axis=1,keepdims=False),axis=1,keepdims=False)
-    r_scores = tf.divide(tf.subtract(r_scores,tf.reduce_min(r_scores)),tf.subtract(tf.reduce_max(r_scores),tf.reduce_min(r_scores)))
-    bin_of_patch = tf.histogram_fixed_width_bins(r_scores, value_range=[0.0,1.0], nbins=3)[0]
-    hi = tf.equal(bin_of_patch,1)
-    hi = tf.expand_dims(hi,axis=1)
-    zeroidx = tf.where(hi)[:,0]
-    tf.print(zeroidx)
-    patches = tf.gather(enc_patches,zeroidx,axis=1) 
-    patches = self.reshape_1(patches)
-    patches = self.deconv_1(patches)
+    scores = self.reduce_scores(scores)
+    bin_per_patch = self.find_bins(scores,value_range=[0.0,1.0],nbins=self._n_bins)     
 
-    return patches, zeroidx
+    patches = []
+    indices = []
+
+    # getting patches per bin
+    for i in range(1,self._n_bins):
+
+        p , i = self.get_patches_bin(enc_patches,bin_per_patch,i))
+        patches.append(p)
+        indices.append(i)
+     
+    # patch reshaping
+    for i, p  in enumerate(patches):
+        p = self.patch_reshape(p)
+        patches[i] = p
+
+
+    # per-bin reconstruction
+    for i, p in enumerate(patches):
+     j = i+1
+     for k in range(j):
+         p = self._deconv_output[k](p) 
+
+     patches[i] = p
+    
+
+    return patches, indices
+
+  def get_patches_bin(self,enc_patches,bin_per_patch,bin):
+
+     x = tf.expand_dims(tf.equal(bin_per_patch,bin),axis=1)
+     indices = tf.where(x)[:,0]
+     patches = tf.gather(enc_patches,indices,axis=1) 
+
+     return patches, indices
+
+  def find_bins(self,scores,nbins):
+
+     bin_of_patch = tf.histogram_fixed_width_bins(scores, 
+                                                        value_range=[0.0,1.0], 
+                                                        nbins=nbins)[0]
+
+
+     return bin_of_patch
+
+  def reduce_scores(self,scores):
+
+
+      # finding per patch score (finding from more to least important patches)
+      scores = tf.reduce_sum(tf.reduce_sum(scores,axis=1,keepdims=False),
+                                axis=1,
+                                keepdims=False)
+
+      # naive scaling between 0 and 1
+      scores = tf.divide(tf.subtract(scores,tf.reduce_min(scores)),tf.subtract(tf.reduce_max(scores),tf.reduce_min(scores)))
+
+
+      return scores
+ 
 
 
   def compute_data_pde_losses(self, low_res_true, low_res_xz,labels):
@@ -284,13 +340,13 @@ class NSSelfAttention(NSModelPinn):
         patches , idx1 = self([low_res_true,low_res_xz])
 
 
-    true_patches_idx1 = labels[:,0,:,:,0:4]
-    true_patches_idx1 = true_patches_idx1[:,0:64,0:256,:]
-    true_patches_idx1 = tf.reshape(true_patches_idx1,shape=(true_patches_idx1.shape[0],self._n_patch_x*self._n_patch_y,8,32,4))
-    true_patches_idx1 = tf.gather(true_patches_idx1,idx1,axis=1)
+#    true_patches_idx1 = labels[:,0,:,:,0:4]
+#    true_patches_idx1 = true_patches_idx1[:,0:64,0:256,:]
+#    true_patches_idx1 = tf.reshape(true_patches_idx1,shape=(true_patches_idx1.shape[0],self._n_patch_x*self._n_patch_y,8,32,4))
+#    true_patches_idx1 = tf.gather(true_patches_idx1,idx1,axis=1)
 
-
-    uMse = tf.reduce_mean(tf.square(patches-true_patches_idx1))
+    patches = patches[0]
+    uMse = tf.reduce_mean(tf.square(patches))
     vMse = 0
     pMse = 0
     nuMse = 0
