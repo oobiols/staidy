@@ -42,19 +42,19 @@ If you believe this repository can help the development of your research:
 }
 ```
 
-# Install the repository and the required software
+## Install the repository and the required software
 
-## 1. Pre-prerequisits
+### 1. Pre-prerequisits
 
-This repository assumes the user has `python` and `pip` commands readily available.
+This repository assumes the user has `git`, `python`, and `pip` commands readily available.
 
-## 1. Download this repository
+### 2. Download this repository
 First, download this repository:
 
 ```
 git clone https://github.com/oobiols/staidy.git
 ```
-## 2. Install the requirements
+### 2. Install the requirements
 This repository works with Python and calls several libraries that need to be installed:
 
 ```
@@ -63,7 +63,7 @@ pip install -r requirements.txt
 
 OpenFOAM V8 is not installed with this command. It needs to be installed as a third-party software.
 
-# Reproduce SURFNet's results
+## Reproduce SURFNet's results
 
-## 1. Train the coarse model
+### 1. Train the coarse model
 Download the _training dataset_ and the _validation dataset_ 
