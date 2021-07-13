@@ -66,7 +66,7 @@ OpenFOAM V8 is not installed with this command. It needs to be installed as a th
 ## Reproduce SURFNet's results
 
 ### 1. Train the coarse model
-Download the _training dataset_ and the _validation dataset_ from the following publicly avaibable Google Drive link:
+Download the _training dataset_ and the _validation dataset_ from the following publicly available Google Drive link:
 
 ```
 gdown https://drive.google.com/uc?id=1ig8gHcO6S7nM6_sC3w1tLsUh0_IhmUcI
