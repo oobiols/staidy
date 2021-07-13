@@ -72,3 +72,10 @@ Download the _training dataset_ and the _validation dataset_ from the following 
 gdown https://drive.google.com/uc?id=1ig8gHcO6S7nM6_sC3w1tLsUh0_IhmUcI
 ```
 
+After the download, you can start the training. Please note that the code will use all the available GPUs by default:
+
+```
+python coarse_model.py -bs 64 -lrt 5e-4 -e 1000 
+```
+This training should reach both a loss and validation loss value around 8e-4 after ~40 epochs. This experiment took 2h30m on 4 V100 Nvidia GPUs.
+
