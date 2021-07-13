@@ -46,7 +46,10 @@ If you believe this repository can help the development of your research:
 
 ### 1. Pre-prerequisits
 
-This repository assumes the user has `git`, `python`, and `pip` commands readily available.
+This repository relies on:
+a) The user has `git`, `python`, and `pip` commands readily available. 
+b) The Tensorflow API. The training experiments were conducted with Tensorflow 2.4 backend. Any flavour for installing the Tensorflow API is welcome (pip, conda, docker, ...). This might cause different training/inference performance values. 
+c) 
 
 ### 2. Download this repository
 First, download this repository:
@@ -54,14 +57,12 @@ First, download this repository:
 ```
 git clone https://github.com/oobiols/staidy.git
 ```
-### 2. Install the requirements
+### 2. Install required python libraries
 This repository works with Python and calls several libraries that need to be installed:
 
 ```
 pip install -r requirements.txt
 ```
-
-OpenFOAM V8 is not installed with this command. It needs to be installed as a third-party software.
 
 ## Reproduce SURFNet's results
 
@@ -77,5 +78,4 @@ After the download, you can start the training. Please note that the code will u
 ```
 python coarse_model.py -bs 64 -lrt 5e-4 -e 1000 
 ```
-This training should reach both a loss and validation loss value around 8e-4 after ~40 epochs. This experiment took 2h30m on 4 V100 Nvidia GPUs.
-
+The training is conducted with the EarlyStopping callback from Keras. 
