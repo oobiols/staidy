@@ -198,6 +198,7 @@ class NSSelfAttention(NSModelPinn):
                num_attention = 1,
                num_heads=2,
                proj_dimension=32,
+               nbins=3,
                **kwargs):
 
     super(NSSelfAttention, self).__init__(**kwargs)
@@ -209,11 +210,12 @@ class NSSelfAttention(NSModelPinn):
     rows_patch    = patch_size[0]
     columns_patch = patch_size[1]
 
-    self._channels = image_size[2]
+    self._channels_in = image_size[2]
+    self._channels_out = 4
     self._pixels_patch = rows_patch*columns_patch
     self._n_patch_y = rows_image//rows_patch
     self._n_patch_x = columns_image//columns_patch
-
+    self._n_bins = nbins
 
     self.k = kernel_size
     self._res_blocks = []
@@ -228,47 +230,47 @@ class NSSelfAttention(NSModelPinn):
         self._res_blocks.append(ResidualBlock(i,kernel_size=self.k))
 
     
-    self.patches = keras.layers.Conv2D(filters=proj_dimension,
+    self.patches = keras.layers.Conv2D(filters=self._proj_dimension,
                                                 kernel_size = patch_size,
                                                 strides = patch_size,
                                                 activation = tf.nn.leaky_relu)
 
 
-    self.reshape = keras.layers.Reshape((-1,proj_dimension))
+    self.reshape = keras.layers.Reshape((-1,self._proj_dimension))
     for _ in range(num_attention):
         self._self_attention.append(MultiHeadAttention(num_heads=self._num_heads,proj_dimension=self._proj_dimension))
 
    
-    self.reshape_1 = keras.layers.Reshape((self._n_patch_y*self._n_patch_x,self._pixels_patch,self._channels))
-    self.conv = keras.layers.Conv2D
+    self.reshape_1 = keras.layers.Reshape((-1,2,8, 4))
+    self.deconv_1 = keras.layers.Conv3DTranspose(filters=4,
+						kernel_size=(1,4,4),
+						strides=(1,4,4),
+						activation = tf.nn.leaky_relu,
+						padding="same")
   def call(self, inputs):
 
     features = tf.concat([inputs[0],inputs[1]],axis=-1)
     for layer in self._res_blocks:
      features = layer(features)
 
-
     enc_patches = self.patches(features)
     enc_patches = self.reshape(enc_patches)
     
-
     for layer in self._self_attention:
      enc_patches , scores = layer(enc_patches)
 
-    r_scores = tf.reduce_sum(scores,axis=1,keepdims=False)
-    r_scores = tf.reduce_sum(r_scores,axis=1,keepdims=False)
+    r_scores = tf.reduce_sum(tf.reduce_sum(scores,axis=1,keepdims=False),axis=1,keepdims=False)
     r_scores = tf.divide(tf.subtract(r_scores,tf.reduce_min(r_scores)),tf.subtract(tf.reduce_max(r_scores),tf.reduce_min(r_scores)))
     bin_of_patch = tf.histogram_fixed_width_bins(r_scores, value_range=[0.0,1.0], nbins=3)[0]
-    hi = tf.less(bin_of_patch,1)
+    hi = tf.equal(bin_of_patch,1)
     hi = tf.expand_dims(hi,axis=1)
     zeroidx = tf.where(hi)[:,0]
-    patches = tf.gather(r_scores,zeroidx,axis=1)
+    tf.print(zeroidx)
+    patches = tf.gather(enc_patches,zeroidx,axis=1) 
+    patches = self.reshape_1(patches)
+    patches = self.deconv_1(patches)
 
-
-   
-
-    
-    return enc_patches
+    return patches, zeroidx
 
 
   def compute_data_pde_losses(self, low_res_true, low_res_xz,labels):
@@ -279,10 +281,16 @@ class NSSelfAttention(NSModelPinn):
       with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(low_res_xz)
 
-        enc_patches = self([low_res_true,low_res_xz])
+        patches , idx1 = self([low_res_true,low_res_xz])
 
 
-    uMse = tf.reduce_mean(enc_patches)
+    true_patches_idx1 = labels[:,0,:,:,0:4]
+    true_patches_idx1 = true_patches_idx1[:,0:64,0:256,:]
+    true_patches_idx1 = tf.reshape(true_patches_idx1,shape=(true_patches_idx1.shape[0],self._n_patch_x*self._n_patch_y,8,32,4))
+    true_patches_idx1 = tf.gather(true_patches_idx1,idx1,axis=1)
+
+
+    uMse = tf.reduce_mean(tf.square(patches-true_patches_idx1))
     vMse = 0
     pMse = 0
     nuMse = 0

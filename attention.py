@@ -68,8 +68,9 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-X_train = np.load('./datasets/channelflow_LR.npy')
-print(X_train.shape)
+X_train = np.load('./channelflow_LR.npy')
+Y_train = np.load('./Y_channelflow.npy',allow_pickle=True)[0:3]
+print(Y_train.shape)
 
 
 name = "epochs_"+str(args.epochs)+\
@@ -91,7 +92,7 @@ nsNet =  NSSelfAttention(
                kernel_size = 5,
                num_attention = 1,
                num_heads=2,
-               proj_dimension=32
+               proj_dimension=64
                )
 
 #nsNet.build(input_shape=[(None,32,128,4),(None,32,128,2)])
@@ -120,14 +121,12 @@ nsNet.compile(optimizer=optimizer,
 #					    restore_best_weights=False,
 #)]
 #
-#X_val = np.load('./ellipse03.npy')
-#Y_val = X_val
 #
 nsCB = []
 history = nsNet.fit(x=X_train,
-                    y=X_train,
+                    y=Y_train,
                     steps_per_epoch = 3,
-                    validation_data=(X_train,X_train),\
+                    validation_data=(X_train,Y_train),\
                     validation_steps = 1,
                     initial_epoch=0, 
                     epochs=args.epochs,\
@@ -135,5 +134,5 @@ history = nsNet.fit(x=X_train,
                	    callbacks=nsCB,
               	    shuffle=True)
 
-#plot.history(history,name=name)
-#nsNet.save('./models/'+name)
+plot.history(history,name=name)
+nsNet.save('./models/'+name)
