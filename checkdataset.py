@@ -3,16 +3,19 @@ sys.path.append('./src')
 from Dataset import Dataset
 import numpy as np
 
-h = 32
-w = 128
-
-ds = Dataset(size=[h,w,6], 
-	     add_coordinates = 1)
+h=64
+w=256
+c=6
+size=[h,w,c]
+ds = Dataset(size=size, 
+	     add_coordinates = 0)
 
 ds.set_type("train")
-cases=["channelflow"]
+cases=["ellipse01","NACA0012"]
+X  , Y = ds.load_data(cases)
+print(X.shape)
 
-X , Y = ds.load_data(cases,patches=0)
 
-np.save('channelflow_LR',X)
+np.save('X_val.npy',X)
+np.save('Y_val.npy',Y)
 

@@ -48,24 +48,29 @@ class NSModelDataOnly(keras.Model):
     with tf.GradientTape(persistent=True) as tape0:
 
       flowPred = self(inputs)
-      uMse    = mse(flowPred[:,:,:,0],true[:,:,:,0])
-      uMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
-      uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size)
+   #   uMse    = mse(flowPred[:,:,:,0],true[:,:,:,0])
+   #   uMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
+   #   uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size)
 
-      vMse    = mse(flowPred[:,:,:,1],true[:,:,:,1])
-      vMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
-      vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size)
+      uMseGlobal = tf.reduce_mean(tf.square(flowPred[:,:,:,0]-true[:,:,:,0]))
+      vMseGlobal = tf.reduce_mean(tf.square(flowPred[:,:,:,1]-true[:,:,:,1]))
+      pMseGlobal = tf.reduce_mean(tf.square(flowPred[:,:,:,2]-true[:,:,:,2]))
+      nuMseGlobal = tf.reduce_mean(tf.square(flowPred[:,:,:,3]-true[:,:,:,3]))
+
+   #   vMse    = mse(flowPred[:,:,:,1],true[:,:,:,1])
+   #   vMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
+   #   vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size)
       
-      pMse    = mse(flowPred[:,:,:,2],true[:,:,:,2])
-      pMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
-      pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size)
+   #   pMse    = mse(flowPred[:,:,:,2],true[:,:,:,2])
+   #   pMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
+   #   pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size)
       
       
-      nuMse    = mse(flowPred[:,:,:,3],true[:,:,:,3])
-      nuMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
-      nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size)
+   #   nuMse    = mse(flowPred[:,:,:,3],true[:,:,:,3])
+   #   nuMse    /= tf.cast(tf.reduce_prod(singlesample), tf.float32)
+   #   nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size)
       
-      rMse    = tf.add_n(self.losses)
+    #  rMse    = tf.add_n(self.losses)
    
       loss    = 0.25*(uMseGlobal + vMseGlobal + pMseGlobal + nuMseGlobal) 
     # update gradients and trainable variables
@@ -83,7 +88,7 @@ class NSModelDataOnly(keras.Model):
     self.trainMetrics['vMse'].update_state(vMseGlobal)
     self.trainMetrics['pMse'].update_state(pMseGlobal)
     self.trainMetrics['nuMse'].update_state(nuMseGlobal)
-    self.trainMetrics['rMse'].update_state(rMse)
+    #self.trainMetrics['rMse'].update_state(rMse)
     # track gradients coefficients
     if self.saveGradStat:
       self.record_layer_gradient(uMseGrad, 'u_')
@@ -99,24 +104,28 @@ class NSModelDataOnly(keras.Model):
   def test_step(self, data):
     inputs = data[0]
     true    = data[1]
-    mse = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
-    s = tf.shape(true)[1]
+   # mse = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
+   # s = tf.shape(true)[1]
     flowPred = self(inputs)
-    uMse    = mse(flowPred[:,:,:,0],true[:,:,:,0])
-    uMse    /= tf.cast(tf.reduce_prod(s), tf.float32)
-    uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size)
+   # uMse    = mse(flowPred[:,:,:,0],true[:,:,:,0])
+   # uMse    /= tf.cast(tf.reduce_prod(s), tf.float32)
+   # uMseGlobal = tf.nn.compute_average_loss(uMse, global_batch_size = self.global_batch_size)
+    uMseGlobal = tf.reduce_mean(tf.square(flowPred[:,:,:,0]-true[:,:,:,0]))
+    vMseGlobal = tf.reduce_mean(tf.square(flowPred[:,:,:,1]-true[:,:,:,1]))
+    pMseGlobal = tf.reduce_mean(tf.square(flowPred[:,:,:,2]-true[:,:,:,2]))
+    nuMseGlobal = tf.reduce_mean(tf.square(flowPred[:,:,:,3]-true[:,:,:,3]))
     
-    vMse    = mse(flowPred[:,:,:,1],true[:,:,:,1])
-    vMse    /= tf.cast(tf.reduce_prod(s), tf.float32)
-    vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size)
+   # vMse    = mse(flowPred[:,:,:,1],true[:,:,:,1])
+   # vMse    /= tf.cast(tf.reduce_prod(s), tf.float32)
+   # vMseGlobal = tf.nn.compute_average_loss(vMse, global_batch_size=self.global_batch_size)
     
-    pMse    = mse(flowPred[:,:,:,2],true[:,:,:,2])
-    pMse    /= tf.cast(tf.reduce_prod(s), tf.float32)
-    pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size)
-    
-    nuMse    = mse(flowPred[:,:,:,3],true[:,:,:,3])
-    nuMse    /= tf.cast(tf.reduce_prod(s), tf.float32)
-    nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size)
+   # pMse    = mse(flowPred[:,:,:,2],true[:,:,:,2])
+   # pMse    /= tf.cast(tf.reduce_prod(s), tf.float32)
+   # pMseGlobal = tf.nn.compute_average_loss(pMse, global_batch_size=self.global_batch_size)
+   # 
+   # nuMse    = mse(flowPred[:,:,:,3],true[:,:,:,3])
+   # nuMse    /= tf.cast(tf.reduce_prod(s), tf.float32)
+   # nuMseGlobal = tf.nn.compute_average_loss(nuMse, global_batch_size=self.global_batch_size)
     
    
     loss    = 0.25*(uMseGlobal + vMseGlobal + pMseGlobal + nuMseGlobal) 

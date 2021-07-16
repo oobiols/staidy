@@ -44,11 +44,12 @@ class DataGenerator(tf.keras.utils.Sequence):
 
         return X, Y
 
-def SimpleGenerator(path='../datasets/train/ellipse/64x256/ellipse005.h5',batch_size=1):
+def SimpleGenerator(batch_size=1):
 
     batch_size = batch_size
-    h5f = h5py.File(path,'r')
-    nSamples = h5f.get("x_train_dataset").shape[0]
+    X = np.load('X_train.npy', mmap_mode='r')
+    Y = np.load('Y_train.npy',mmap_mode='r')
+    nSamples = X.shape[0]
     nBatches = (nSamples + batch_size - 1) // batch_size
     b = np.arange(nBatches)
     while(True):
@@ -57,8 +58,8 @@ def SimpleGenerator(path='../datasets/train/ellipse/64x256/ellipse005.h5',batch_
 
      for i in b:
        
-        X = h5f["x_train_dataset"][i*batch_size : (i+1)*batch_size]
-        Y = h5f["y_train_dataset"][i*batch_size : (i+1)*batch_size]
+        x = X[i*batch_size : (i+1)*batch_size]
+        y = Y[i*batch_size : (i+1)*batch_size]
 
-        yield (X,Y)
+        yield (x,y)
 

@@ -118,7 +118,7 @@ class Dataset():
   Y=np.empty([0,self.height,self.width,self.channels],dtype=np.float16)
 
   for case in cases:
-
+   print(case)
    self.file_path = self.directory+self.dataset_type+'/'+str(self.height)+'x'+ str(self.width)+'/'+case+'.h5'
    h5f = h5py.File(self.file_path,"r")
 
@@ -252,7 +252,7 @@ class Dataset():
  
   x_addrs = np.asarray(x_addrs)
   y_addr  = np.asarray(y_addr)
- 
+
   return x_addrs, y_addr
 
  def __case_data(self,
@@ -268,6 +268,7 @@ class Dataset():
   y_addr = y_addr[0]
 
   for i in range(0,n):
+
 
     x_addr = x_addrs[i]
 
@@ -304,27 +305,21 @@ class Dataset():
   elif (self.grid == "ellipse"):
 
     uavg = 0.6
-    nuTildaAvg = 1e-3
+    nuTildaAvg = 1e-4
 
   Ux /= uavg
   Uy /= uavg
   p /= uavg*uavg
 
-  data    = np.stack( (Ux, Uy) , axis=-1)  
-  data    = np.stack( (data, p), axis=-1)
-
   if (self.is_turb):
    nuTilda = self.map_domain(nuTilda)
    nuTilda /= nuTildaAvg
-   data   = np.stack( ( data, nuTilda), axis=-1) 
+
+  data = np.stack([Ux,Uy,p,nuTilda],axis=-1)
 
   if (self.add_coordinates):
     x,z = self.xyz[:,0], self.xyz[:,2]
     x,z = self.map_domain(x), self.map_domain(z)
-
-    data = np.stack ( (data,x), axis=-1)  
-    data = np.stack ( (data,z), axis=-1)
-
 
   return np.float16(data)
 
@@ -347,19 +342,13 @@ class Dataset():
 
  def convert_to_foam(self,arr):
 
-#  p0 = arr[:,0,:,:,:]
-#  p1 = arr[:,1,:,:,:]
-#  p2 = arr[:,2,:,:,:]
-#  p3 = arr[:,3,:,:,:]
-#  
-#  bottom = np.append(p0,p2,axis=1)
-#  top = np.append(p1,p3,axis=1)
-#  arr = np.append(bottom,top,axis=2)
 
   Ux = arr[:,:,:,0]
-  Uz = arr[:,:,:,0]
-  p = arr[:,:,:,0]
-  nuTilda = arr[:,:,:,0]
+  Uz = arr[:,:,:,1]
+  p = arr[:,:,:,2]
+  nuTilda = arr[:,:,:,3]
+
+  Ux, Uz, p, nuTilda = self.impose_bc(Ux, Uz, p, nuTilda)
 
   Ux = self.unmap_domain(Ux)
   Uz = self.unmap_domain(Uz)
@@ -374,8 +363,7 @@ class Dataset():
 
  def vector_to_foam(self,X,Y,Z,variable_name="U"):
 
-  #Uavg = 0.6
-  Uavg=1.0
+  Uavg=0.6
   n_samples = len(X)
   for n in range(n_samples):
 
@@ -404,7 +392,6 @@ class Dataset():
  def pressure_to_foam(self,X, variable_name='p'):
 
   Uavg = 0.6
-  #Uavg = 1.0
   n_samples = len(X)
   for n in range(n_samples):
 
@@ -430,7 +417,6 @@ class Dataset():
  def nuTilda_to_foam(self,X, variable_name='nuTilda'):
 
   Uavg = 1e-4
-  #Uavg = 1.0
   n_samples = len(X)
   for n in range(n_samples):
 
@@ -503,6 +489,17 @@ class Dataset():
     variable_list.append(arr)
 
   return variable_list
+
+
+ def impose_bc(self,Ux, Uz, p, nuTilda):
+
+  Ux[:,-10:,:] = 1
+  Uz[:,-10:,:] = 0
+  p[:,-10:,:] = 0
+  nuTilda[:,-10:,:] = 0.03
+
+  return Ux, Uz, p, nuTilda
+
 
  def map_domain(self, arr):
 
@@ -675,7 +672,7 @@ class DatasetNoWarmup(Dataset):
     while (case_number !=case_end) :
 
       case = "case_"+str(case_number)
-      print("case number is ", case)
+      #print("case number is ", case)
   
       if self.add_coordinates:
        self.xyz = self.get_coordinates(self.dataset_type,case)
@@ -684,8 +681,8 @@ class DatasetNoWarmup(Dataset):
       #Reads the primary variable values at each iteration of the OpenFOAM data and t 
       train_x, train_y = self.__case_data(train_x_addrs, train_y_addr)
     
-      print("x size ",train_x.shape)
-      print("y size ",train_y.shape)
+      #print("x size ",train_x.shape)
+      #print("y size ",train_y.shape)
   
       if count==0:
   

@@ -30,7 +30,7 @@ elif (args.turb==0 and args.coordiantes == 0):
 
 size = [args.height,args.width,channels]
 
-ds = DatasetNoWarmup(size=size, 
+ds = Dataset(size=size, 
              grid = args.grid,
              is_turb=args.turb,
 	     add_coordinates = args.coordinates)

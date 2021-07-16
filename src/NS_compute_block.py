@@ -74,7 +74,7 @@ class ConvolutionDeconvolutionLayers(keras.layers.Layer):
                                               kernel_size = kernel_size,\
                                               padding = "same",\
                                               strides = strides,\
-                                              kernel_regularizer=keras.regularizers.l2(reg[i]),
+                 				activation=tf.nn.leaky_relu, 
                                               input_shape=input_shape,
 					      data_format = "channels_last"
                                               )
@@ -84,45 +84,36 @@ class ConvolutionDeconvolutionLayers(keras.layers.Layer):
                                               filters=f,\
                                               kernel_size = kernel_size,\
                                               padding = "same",\
-                                              strides = strides,\
-                                              kernel_regularizer=keras.regularizers.l2(reg[i])
+						activation=tf.nn.leaky_relu,
+                                              strides = strides
                                               )
                          )
 
 
-      if activation=="LeakyReLU":
-       self.layers.append(keras.layers.LeakyReLU(alpha=0.1))
-      elif activation=="tanh": 
-       self.layers.append(keras.layers.Activation(tf.keras.activations.tanh))
 
     self.filters = np.flip(self.filters) 
     n = len(self.filters)
     for i, f in enumerate(self.filters):
-      
-      if i == (n-1):
+    
+       if i == (n-1): 
         self.layers.append(keras.layers.Conv2DTranspose(
-                                              filters=f,\
+                                              filters=4,\
                                               kernel_size = kernel_size,\
                                               padding = "same",\
                                               strides = strides,\
-					      activation = activation,
-                                              kernel_regularizer=keras.regularizers.l2(reg[i])
+						activation=tf.nn.leaky_relu
                                               )
                          )
-      else:
-        self.layers.append(keras.layers.Conv2DTranspose(
-                                              filters=f,\
-                                              kernel_size = kernel_size,\
-                                              padding = "same",\
-                                              strides = strides,\
-                                              kernel_regularizer=keras.regularizers.l2(reg[i])
-                                              )
-                         )
-        if activation=="LeakyReLU":
-         self.layers.append(keras.layers.LeakyReLU(alpha=0.1))
-        elif activation=="tanh": 
-         self.layers.append(keras.layers.Activation(tf.keras.activations.tanh))
+       else:
 
+        self.layers.append(keras.layers.Conv2DTranspose(
+                                              filters=f,\
+                                              kernel_size = kernel_size,\
+                                              padding = "same",\
+                                              strides = strides,\
+						activation=tf.nn.leaky_relu
+                                              )
+                         )
 
   def call(self, inputs):
   

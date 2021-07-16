@@ -267,7 +267,7 @@ class NSSelfAttention(NSModelPinn):
      enc_patches , scores = layer(enc_patches)
 
     scores = self.reduce_scores(scores)
-    bin_per_patch = self.find_bins(scores,value_range=[0.0,1.0],nbins=self._n_bins)     
+    bin_per_patch = self.find_bins(scores,nbins=self._n_bins)     
 
     patches = []
     indices = []
@@ -275,7 +275,7 @@ class NSSelfAttention(NSModelPinn):
     # getting patches per bin
     for i in range(1,self._n_bins):
 
-        p , i = self.get_patches_bin(enc_patches,bin_per_patch,i))
+        p , i = self.get_patches_bin(enc_patches,bin_per_patch,i)
         patches.append(p)
         indices.append(i)
      
@@ -289,7 +289,7 @@ class NSSelfAttention(NSModelPinn):
     for i, p in enumerate(patches):
      j = i+1
      for k in range(j):
-         p = self._deconv_output[k](p) 
+         p = self._output_deconv[k](p) 
 
      patches[i] = p
     
@@ -315,7 +315,6 @@ class NSSelfAttention(NSModelPinn):
 
   def reduce_scores(self,scores):
 
-
       # finding per patch score (finding from more to least important patches)
       scores = tf.reduce_sum(tf.reduce_sum(scores,axis=1,keepdims=False),
                                 axis=1,
@@ -337,7 +336,7 @@ class NSSelfAttention(NSModelPinn):
       with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(low_res_xz)
 
-        patches , idx1 = self([low_res_true,low_res_xz])
+        patches , indices = self([low_res_true,low_res_xz])
 
 
 #    true_patches_idx1 = labels[:,0,:,:,0:4]
@@ -345,8 +344,11 @@ class NSSelfAttention(NSModelPinn):
 #    true_patches_idx1 = tf.reshape(true_patches_idx1,shape=(true_patches_idx1.shape[0],self._n_patch_x*self._n_patch_y,8,32,4))
 #    true_patches_idx1 = tf.gather(true_patches_idx1,idx1,axis=1)
 
-    patches = patches[0]
-    uMse = tf.reduce_mean(tf.square(patches))
+    for i, p in enumerate(patches):
+         
+
+    patch = patches[0]
+    uMse = tf.reduce_mean(tf.square(patch))
     vMse = 0
     pMse = 0
     nuMse = 0

@@ -92,7 +92,7 @@ nsNet =  NSSelfAttention(
                kernel_size = 5,
                num_attention = 1,
                num_heads=2,
-               proj_dimension=64
+               proj_dimension=256
                )
 
 #nsNet.build(input_shape=[(None,32,128,4),(None,32,128,2)])
