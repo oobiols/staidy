@@ -6,8 +6,8 @@ CFDNet is a deep learning-based accelerator for 2D, coarse-grid, steady-state si
 ### Why you might be interested in this repository
 In this README file, you will find: 
 1. An overview on CFDNet and SURFNet.
-2. The dataset used to train and valdiate the _coarse model_ in the SURFNet paper and the command to train and reproduce the training results.
-3. Use the already trained models and reproduce the performance results in Table III of the paper. 
+2. The dataset used to train and validate the _coarse model_ in the SURFNet paper and the command to train and reproduce the training results.
+3. Perform the _transfer_ stage of the _coarse model_ to higher discretizations and accelerate fine-discretization simulations using the simpleFoam solver in OpenFOAM. 
 
 Please note that this project is dependent of the physics solver (simpleFoam solver in OpenFOAM). For Step (3), one needs to have OpenFOAM v8 installed. Please also note that the performance results in the paper were obtained when OpenFOAM v8 was under [development](https://openfoam.org/download/8-linux/). Hence, the experiments were conducted using the [Singularity](https://develop.openfoam.com/Development/openfoam/-/issues/1483) image for OpenFOAM v8. New OpenFOAM releases/older OpenFOAM versions/OpenFOAM docker images will not reproduce to the exact same number of iterations and speedup results. However, differences should not be significant and speedups of the same order of magnitude should be observed.
 
@@ -79,6 +79,6 @@ gdown https://drive.google.com/uc?id=1ig8gHcO6S7nM6_sC3w1tLsUh0_IhmUcI
 After the download, you can start the training. Please note that the code will use all the available GPUs by default:
 
 ```
-python coarse_model.py -bs 64 -lrt 5e-4 -e 1000 
+python coarse_model.py -bs 64 -lrt 1e-4 -e 1000 
 ```
 The training is conducted with the EarlyStopping callback from Keras. 
