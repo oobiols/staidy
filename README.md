@@ -79,6 +79,6 @@ gdown https://drive.google.com/uc?id=1ig8gHcO6S7nM6_sC3w1tLsUh0_IhmUcI
 After the download, you can start the training. Please note that the code will use all the available GPUs by default:
 
 ```
-python coarse_model.py -bs 64 -lrt 5e-4 -e 1000 
+python coarse_model.py -bs 64 -lrt 1e-4 -e 1000 
 ```
 The training is conducted with the EarlyStopping callback from Keras. 
