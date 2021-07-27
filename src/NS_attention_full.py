@@ -3,6 +3,21 @@ from tensorflow import keras
 import numpy as np
 from NS_model import NSModelPinn
 
+class PositionEmbedding(keras.layers.Layer):
+    def __init__(self,sequence_length,projection_dim_encoder):
+     super(PositionEmbedding,self).__init__()
+     self.sequence_length = sequence_length
+     self.position_embedding = keras.layers.Embedding(input_dim=sequence_length,
+                                                      output_dim=projection_dim_encoder,
+                                                      trainable=False,
+                                                      name="Pre/PositionEmbedding")
+    def call(self,inputs):
+     positions = tf.range(start=0,limit=self.sequence_length,delta=1)
+     embedding = self.position_embedding(positions)
+     return inputs + embedding
+
+
+#class Masking
 class ResidualBlock(keras.layers.Layer):
     def __init__(self,
                  filters=16,
@@ -50,7 +65,6 @@ class ResidualBlock(keras.layers.Layer):
        return x
 
 class Mlp(keras.layers.Layer):
-
     def __init__(self,
                  hidden_units = [10,10],
                  dropout_rate = 0,
@@ -102,6 +116,78 @@ class MultiHeadAttention(keras.layers.Layer):
        x  = self.add_2([x3,x2])
 
        return x , attention_scores
+
+
+class ResidualBlockAttentionModule(keras.layers.Layer):
+    def __init__(self,
+                 f=16,
+                 r=4,
+                 height=64,
+                 width=256,
+                 **kwargs):
+
+        super(ResidualBlockAttentionModule,self).__init__(**kwargs)
+        
+        self.SA = SpatialAttentionModule(f=f,r=r)
+        self.elementwise_1 = keras.layers.Multiply()
+        self.CA = ChannelAttentionModule(f=f,r=r,height=height,width=width)
+        self.elementwise_2 = keras.layers.Multiply()
+        self.res = keras.layers.Add()
+
+    def call(self,inputs):
+        
+       spatial = self.SA(inputs)
+       spatial_attention = self.elementwise_1([spatial,inputs])
+       channel = self.CA(spatial_attention)
+       channel_attention = self.elementwise_2([channel,spatial_attention])
+       x = self.res([inputs,channel_attention])
+      
+       return x , spatial
+
+class SpatialAttentionModule(keras.layers.Layer):
+    def __init__(self,
+                 f=16 ,
+                 r=4 ,
+                 **kwargs):
+
+        super(SpatialAttentionModule,self).__init__(**kwargs)
+        
+        c = int(f/r)
+        self.reduction = keras.layers.Conv2D(filters=c,kernel_size=(1,1),strides=(1,1),padding="same",activation=tf.nn.leaky_relu)
+        self.dilated = keras.layers.Conv2D(filters=c,kernel_size=(5,5),strides=(1,1),padding="same",activation=tf.nn.leaky_relu)
+        self.spatial = keras.layers.Conv2D(filters=1,kernel_size=(1,1),strides=(1,1),padding="same",activation=tf.nn.leaky_relu)
+        
+
+    def call(self,inputs):
+
+       x = self.reduction(inputs)
+       x = self.dilated(x)
+       x = self.spatial(x)
+      
+       return x
+
+class ChannelAttentionModule(keras.layers.Layer):
+    def __init__(self,
+                 f=16,
+                 r = 4 ,
+                 height = 16,
+                 width  = 64, 
+                 **kwargs):
+
+        super(ChannelAttentionModule,self).__init__(**kwargs)
+        
+        c = int(f/r)
+        self.pooling = keras.layers.AveragePooling2D(pool_size=(height,width),strides=(height,width))
+        self.mlp1 = keras.layers.Dense(c,activation=tf.nn.leaky_relu)
+        self.mlp2 = keras.layers.Dense(f,activation=tf.nn.leaky_relu)
+         
+    def call(self,inputs):
+
+       x = self.pooling(inputs)
+       x = self.mlp1(x)
+       x = self.mlp2(x)
+      
+       return x
 
 class RankingModule(keras.layers.Layer):
     def __init__(self,
@@ -247,10 +333,12 @@ class NSSelfAttention(NSModelPinn):
     self.from_patch_to_mha = keras.layers.Reshape((-1,self._proj_dimension))
     self.from_mha_to_patch = keras.layers.Reshape((-1,self._rows_patch,self._columns_patch, self._channels_out))
 
+
   def call(self, inputs):
 
     features = inputs[0]
     coordinates = inputs[1]
+
     #LR feature extraction
     for layer in self._res_blocks:
      features = layer(features)
@@ -285,9 +373,10 @@ class NSSelfAttention(NSModelPinn):
     XZ=[]
     level=1
     for i, p in enumerate(patches_by_rank):
-
          xz = coordinates
+         print(xz.shape)
          xz = self._coord_upsampling[i](xz)
+         print(xz.shape)
          xz = self._coord_patches[i](xz)
          xz = tf.gather(xz,indices_by_rank[i],axis=1)
          p = tf.concat([p,xz],axis=-1)
@@ -319,35 +408,22 @@ class NSSelfAttention(NSModelPinn):
     u_grad = tape1.gradient(u_pred_patches,XZ)
     v_grad = tape1.gradient(v_pred_patches,XZ)
 
-    low_res_true = tf.reshape(low_res_true,
-                          shape=(low_res_true.shape[0],
-                                 self._n_patch_y*self._n_patch_x,
-                                 self._rows_patch,
-                                 self._columns_patch,
-                                 self._channels_out))
+#    low_res_true = tf.reshape(low_res_true,
+#                          shape=(low_res_true.shape[0],
+#                                 self._n_patch_y*self._n_patch_x,
+#                                 self._rows_patch,
+#                                 self._columns_patch,
+#                                 self._channels_out))
 
-    low_res_true_patches = tf.gather(low_res_true,indices[0],axis=1)                      
-    u_true_patches = low_res_true_patches[:,:,:,:,0]
-    v_true_patches = low_res_true_patches[:,:,:,:,1]
-    p_true_patches = low_res_true_patches[:,:,:,:,2]
 
-    uMse = tf.reduce_mean(tf.square(u_pred_patches[0] - u_true_patches))
-    vMse = tf.reduce_mean(tf.square(v_pred_patches[0] - v_true_patches))
-    pMse = tf.reduce_mean(tf.square(p_pred_patches[0] - p_true_patches))
-
-    contMse =0
-    for i,_ in enumerate(u_grad):
-     ugrad = u_grad[i]
-     ux = ugrad[:,:,:,:,0]
-     vgrad = v_grad[i]
-     vz = vgrad[:,:,:,:,1]
-
-     contMse += tf.reduce_mean(tf.square(ux+vz))
-
-    nuMse = 0 
+    uMse = tf.mean(tf.square(pred_patches[0]))
+    vMse = 0
+    pMse = 0
+    nuMse = 0
+    pde0Mse = 0 
     pde1Mse = 0
-    pde2Mse = 0 
-    return uMse, vMse, pMse, nuMse, contMse, pde1Mse, pde2Mse
+    pde0Mse = 0
+    return uMse, vMse, pMse, nuMse, pde0Mse, pde1Mse, pde2Mse
 
 
   def test_step(self, data):
@@ -357,18 +433,33 @@ class NSSelfAttention(NSModelPinn):
     low_res_true = inputs[:,:,:,0:3]
     low_res_xz = inputs[:,:,:,3:5]
 
+
+    #scores = self([low_res_true,low_res_xz])
+
+
+#    uMse = tf.reduce_mean(tf.square(u_pred_HR -   high_res_true[:,:,:,0]))
+#    vMse = tf.reduce_mean(tf.square(v_pred_HR -   high_res_true[:,:,:,1]))
+#    pMse = tf.reduce_mean(tf.square(p_pred_HR -   high_res_true[:,:,:,2]))
+#    nuMse = tf.reduce_mean(tf.square(nu_pred_HR - high_res_true[:,:,:,3]))
+
+      # replica's loss, divided by global batch size
     uMse = 0
     vMse = 0 
     pMse = 0
     nuMse = 0
     data_loss  = 0.5*(uMse   + vMse )#  + pMse + nuMse) 
-    contMse = 0.0
+
     loss = data_loss
 
+    #loss += tf.add_n(self.losses)
+    # track loss and mae
     
     self.validMetrics['loss'].update_state(loss)
-    self.validMetrics['data_loss'].update_state(data_loss)
-    self.validMetrics['cont_loss'].update_state(contMse)
+#    self.validMetrics['data_loss'].update_state(data_loss)
+#    contMse=0.0
+#    momxMse = 0.0
+#    momzMse =0.0
+#    self.validMetrics['cont_loss'].update_state(contMse)
 #    self.validMetrics['mom_x_loss'].update_state(momxMse)
 #    self.validMetrics['mom_z_loss'].update_state(momzMse)
 #    self.validMetrics['uMse'].update_state(uMse)
@@ -395,12 +486,13 @@ class NSSelfAttention(NSModelPinn):
       uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
         self.compute_data_pde_losses(low_res_true, low_res_xz,labels)
       # replica's loss, divided by global batch size
-      data_loss  = (1/3)*(uMse   + vMse + pMse)# + pMse + nuMse) 
+      data_loss  = 0.5*(uMse   + vMse)# + pMse + nuMse) 
 
       
-      beta_cont = int(data_loss.numpy()/contMse.numpy())
+      #beta_cont = int(data_loss.numpy()/contMse.numpy())
       #beta_momx = int(data_loss/momxMse.numpy())
       beta_momx = 0
+      beta_cont = 0
 
       loss = data_loss + self.beta[0]*beta_cont*contMse + self.beta[1]*beta_momx*momxMse + self.beta[2]*momzMse
     if self.saveGradStat:
@@ -419,8 +511,8 @@ class NSSelfAttention(NSModelPinn):
     # ---- update metrics and statistics ---- #
     # track loss and mae
     self.trainMetrics['loss'].update_state(loss)
-    self.trainMetrics['data_loss'].update_state(data_loss)
-    self.trainMetrics['cont_loss'].update_state(contMse)
+#    self.trainMetrics['data_loss'].update_state(data_loss)
+#    self.trainMetrics['cont_loss'].update_state(contMse)
 #    self.trainMetrics['mom_x_loss'].update_state(momxMse)
 #    self.trainMetrics['mom_z_loss'].update_state(momzMse)
 #    self.trainMetrics['uMse'].update_state(uMse)

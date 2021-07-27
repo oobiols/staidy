@@ -68,10 +68,9 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-X_train = np.load('./channelflow_LR.npy')
-Y_train = np.load('./Y_channelflow.npy',allow_pickle=True)[0:3]
-print(Y_train.shape)
-
+X_train = np.load('./cylinder_lr.npy')
+print(X_train.shape)
+Y_train = X_train
 
 name = "epochs_"+str(args.epochs)+\
        "_lr_"+str(args.learningrate)+\
@@ -82,23 +81,23 @@ name = "epochs_"+str(args.epochs)+\
        args.modelname
 
 if args.architecture == "deep":
- filters=[4,8,16]
+ filters=[3,8,16]
 if args.architecture == "shallow":
- filters = [4,8]
+ filters = [3,8]
 
 nsNet =  NSSelfAttention(
+               image_size = [args.height,args.width,5],
                patch_size = [4,16],
                filters=[16,32],
                kernel_size = 5,
                num_attention = 1,
-               num_heads=2,
-               proj_dimension=256
+               num_heads=2
                )
 
-#nsNet.build(input_shape=[(None,32,128,4),(None,32,128,2)])
+nsNet.build(input_shape=[(None,args.height,args.width,3),(None,args.height,args.width,2)])
 optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
 nsNet.compile(optimizer=optimizer,
-	      run_eagerly=False)
+	      run_eagerly=True)
 
 #nsCB=[]
 #
@@ -125,7 +124,7 @@ nsNet.compile(optimizer=optimizer,
 nsCB = []
 history = nsNet.fit(x=X_train,
                     y=Y_train,
-                    steps_per_epoch = 3,
+                    steps_per_epoch = 1,
                     validation_data=(X_train,Y_train),\
                     validation_steps = 1,
                     initial_epoch=0, 
@@ -134,5 +133,5 @@ history = nsNet.fit(x=X_train,
                	    callbacks=nsCB,
               	    shuffle=True)
 
-plot.history(history,name=name)
-nsNet.save('./models/'+name)
+#plot.history(history,name=name)
+#nsNet.save('./models/'+name)
