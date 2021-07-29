@@ -87,14 +87,14 @@ if args.architecture == "shallow":
 
 nsNet =  NSSelfAttention(
                image_size = [args.height,args.width,5],
-               patch_size = [4,16],
+               patch_size = [8,32],
                filters=[16,32],
                kernel_size = 5,
                num_attention = 1,
-               num_heads=2
+               num_heads=1
                )
 
-nsNet.build(input_shape=[(None,args.height,args.width,3),(None,args.height,args.width,2)])
+#nsNet.build(input_shape=[(None,args.height,args.width,3),(None,args.height,args.width,2)])
 optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
 nsNet.compile(optimizer=optimizer,
 	      run_eagerly=True)
@@ -124,14 +124,12 @@ nsNet.compile(optimizer=optimizer,
 nsCB = []
 history = nsNet.fit(x=X_train,
                     y=Y_train,
-                    steps_per_epoch = 1,
+                    batch_size=args.batchsize, 
                     validation_data=(X_train,Y_train),\
-                    validation_steps = 1,
                     initial_epoch=0, 
                     epochs=args.epochs,\
                     verbose=1, 
                	    callbacks=nsCB,
               	    shuffle=True)
-
-#plot.history(history,name=name)
+plot.history(history,name=name)
 #nsNet.save('./models/'+name)

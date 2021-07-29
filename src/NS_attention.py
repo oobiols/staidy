@@ -2,6 +2,7 @@ import tensorflow as tf
 from tensorflow import keras
 import numpy as np
 from NS_model import NSModelPinn
+from tensorflow.python.ops import math_ops
 
 class ResidualBlock(keras.layers.Layer):
     def __init__(self,
@@ -114,53 +115,50 @@ class RankingModule(keras.layers.Layer):
         self._self_attention = self_attention
         self._n_bins = nbins
 
-
     def call(self,inputs):
      
         scores = inputs[0]
         patch_sequence = inputs[1]
-         
+
         if (self._self_attention):
          scores = self.reduce_scores(scores)
 
-        bin_per_patch = self.find_bins(scores,self._n_bins)
+        bin_per_patch = self.find_bins(scores)
+        #tf.print(bin_per_patch,summarize=bin_per_patch.shape[1])
 
         patches = []
         indices = []
-        for i in range(0,self._n_bins):
+        for i in range(1,self._n_bins+1):
 
-         p , idx = self.get_patches_bin(patch_sequence,bin_per_patch,i)
-
+         p , idx  = self.get_patches_bin(patch_sequence,bin_per_patch,i)
          patches.append(p)
          indices.append(idx)
 
         return patches, indices
 
-    def get_patches_bin(self,enc_patches,bin_per_patch,bin):
+    def get_patches_bin(self,patch_sequence,bin_per_patch,bin_number):
+        
+        bin = tf.equal(bin_per_patch,bin_number)
+        i = tf.squeeze(tf.where(bin[0,:]))
+        p = tf.gather(patch_sequence,i,axis=1)
 
-     x = tf.expand_dims(tf.equal(bin_per_patch,bin),axis=1)
-     indices = tf.where(x)[:,0]
-     patches = tf.gather(enc_patches,indices,axis=1) 
+        return p , i
 
-     return patches, indices
+    def find_bins(self,scores):
 
-    def find_bins(self,scores,nbins):
+     bins = np.linspace(0,1.01,self._n_bins+1).tolist()
+     bin_per_patch = math_ops._bucketize(scores, boundaries=bins)
 
-     bin_per_patch = tf.histogram_fixed_width_bins(scores, 
-                                                        value_range=[0.0,1.0], 
-                                                        nbins=nbins)[0]
      return bin_per_patch
 
     def reduce_scores(self,scores):
 
       # finding per patch score (finding from more to least important patches)
-      scores = tf.reduce_sum(tf.reduce_sum(scores,axis=1,keepdims=False),
-                                axis=1,
-                                keepdims=False)
+      scores = tf.reduce_sum(scores,axis=1,keepdims=False)
+      scores = tf.reduce_sum(scores,axis=1,keepdims=False)
 
       # min max scaling between 0 and 1
       scores = tf.divide(tf.subtract(scores,tf.reduce_min(scores)),tf.subtract(tf.reduce_max(scores),tf.reduce_min(scores)))
-
       return scores
 
 class NSSelfAttention(NSModelPinn):
@@ -221,7 +219,7 @@ class NSSelfAttention(NSModelPinn):
     # output deconv layers
     for _ in range(1,self._n_bins):
 
-     self._output_deconv.append( keras.layers.Conv3DTranspose(filters=4,
+     self._output_deconv.append( keras.layers.Conv3DTranspose(filters=3,
 						kernel_size=(1,2,2),
 						strides=(1,2,2),
 						activation = tf.nn.leaky_relu,
@@ -237,7 +235,7 @@ class NSSelfAttention(NSModelPinn):
                                                     activation=tf.nn.leaky_relu,
                                                    padding="same"))
 
-     self._coord_upsampling.append(keras.layers.UpSampling2D(size=(level,level),interpolation="bilinear"))
+     self._coord_upsampling.append(keras.layers.UpSampling2D(size=level,interpolation="bilinear"))
      self._coord_patches.append(keras.layers.Reshape((self._n_patches,level*self._rows_patch,level*self._columns_patch,-1)))
      level=2*level
 
@@ -251,13 +249,13 @@ class NSSelfAttention(NSModelPinn):
 
     features = inputs[0]
     coordinates = inputs[1]
+
     #LR feature extraction
     for layer in self._res_blocks:
      features = layer(features)
 
     # Find encoded patches through a single Conv2d
     enc_patches = self.get_enc_patches(features)
-
     # Reshape to MHA input (BS,NUM_PATCHES,PROJ_DIM)
     enc_patches = self.from_patch_to_mha(enc_patches)
     
@@ -279,17 +277,21 @@ class NSSelfAttention(NSModelPinn):
         j = i+1
         for k in range(j):
          p = self._output_deconv[k](p) 
-     
+        
         patches_by_rank[j] = p
 
     XZ=[]
-    level=1
     for i, p in enumerate(patches_by_rank):
-
          xz = coordinates
          xz = self._coord_upsampling[i](xz)
+         xz = tf.image.extract_patches(images=xz,
+                                            sizes = [1,self._rows_patch,self._columns_patch,1],
+                                            strides = [1,self._rows_patch,self._columns_patch,1],
+                                            rates=[1,1,1,1],
+                                            padding="VALID")
          xz = self._coord_patches[i](xz)
          xz = tf.gather(xz,indices_by_rank[i],axis=1)
+         xz = tf.reshape(xz,shape=[p.shape[0],p.shape[1],p.shape[2],p.shape[3],2])
          p = tf.concat([p,xz],axis=-1)
          p = self._output_conv[i](p)
 
@@ -298,8 +300,57 @@ class NSSelfAttention(NSModelPinn):
 
     return patches_by_rank ,indices_by_rank, XZ
 
+  def compute_data_loss(self,low_res_true, low_res_pred, low_res_indices):
 
-  def compute_data_pde_losses(self, low_res_true, low_res_xz,labels):
+    low_res_true = tf.image.extract_patches(images=low_res_true,
+                                            sizes = [1,self._rows_patch,self._columns_patch,1],
+                                            strides = [1,self._rows_patch,self._columns_patch,1],
+                                            rates=[1,1,1,1],
+                                            padding="VALID")
+ 
+    low_res_true = tf.keras.layers.Reshape((self._n_patches,self._rows_patch,self._columns_patch,-1))(low_res_true)
+
+    uMse = 0
+    vMse = 0
+    pMse = 0
+
+    s = np.asarray(low_res_indices.numpy().ravel())
+
+    if s.shape[0] > 0:
+
+     low_res_true_patches = tf.reshape(tf.gather(low_res_true,low_res_indices,axis=1),
+                                                 shape=(low_res_pred.shape[0],
+                                                        low_res_pred.shape[1],
+                                                        low_res_pred.shape[2], 
+                                                        low_res_pred.shape[3],
+                                                        low_res_true.shape[-1]))
+
+     u_true_patches = low_res_true_patches[:,:,:,:,0]
+     v_true_patches = low_res_true_patches[:,:,:,:,1]
+     p_true_patches = low_res_true_patches[:,:,:,:,2]
+
+     uMse = tf.reduce_mean(tf.square(low_res_pred[:,:,:,:,0] - u_true_patches))
+     vMse = tf.reduce_mean(tf.square(low_res_pred[:,:,:,:,1] - v_true_patches))
+     pMse = tf.reduce_mean(tf.square(low_res_pred[:,:,:,:,2] - p_true_patches))
+
+    return uMse, vMse, pMse
+
+  def compute_pde_loss(self,u_grad,v_grad):
+
+    contMse = 0
+    cont = 0.0
+    for i , _ in enumerate(u_grad):
+     grad = u_grad[i]
+     ux = grad[:,:,:,:,0]
+     grad = v_grad[i]
+     vz = grad[:,:,:,:,1]
+     if ux.shape[1]>0:
+      contMse += tf.reduce_mean(tf.square(ux+vz))
+      cont = cont+1
+
+    return (1/cont)*contMse
+
+  def compute_loss(self, low_res_true, low_res_xz):
 
     XZ  = low_res_xz
 
@@ -319,35 +370,11 @@ class NSSelfAttention(NSModelPinn):
     u_grad = tape1.gradient(u_pred_patches,XZ)
     v_grad = tape1.gradient(v_pred_patches,XZ)
 
-    low_res_true = tf.reshape(low_res_true,
-                          shape=(low_res_true.shape[0],
-                                 self._n_patch_y*self._n_patch_x,
-                                 self._rows_patch,
-                                 self._columns_patch,
-                                 self._channels_out))
+    uMse, vMse, pMse = self.compute_data_loss(low_res_true, pred_patches[0], indices[0])
 
-    low_res_true_patches = tf.gather(low_res_true,indices[0],axis=1)                      
-    u_true_patches = low_res_true_patches[:,:,:,:,0]
-    v_true_patches = low_res_true_patches[:,:,:,:,1]
-    p_true_patches = low_res_true_patches[:,:,:,:,2]
+    contMse = self.compute_pde_loss(u_grad,v_grad)
 
-    uMse = tf.reduce_mean(tf.square(u_pred_patches[0] - u_true_patches))
-    vMse = tf.reduce_mean(tf.square(v_pred_patches[0] - v_true_patches))
-    pMse = tf.reduce_mean(tf.square(p_pred_patches[0] - p_true_patches))
-
-    contMse =0
-    for i,_ in enumerate(u_grad):
-     ugrad = u_grad[i]
-     ux = ugrad[:,:,:,:,0]
-     vgrad = v_grad[i]
-     vz = vgrad[:,:,:,:,1]
-
-     contMse += tf.reduce_mean(tf.square(ux+vz))
-
-    nuMse = 0 
-    pde1Mse = 0
-    pde2Mse = 0 
-    return uMse, vMse, pMse, nuMse, contMse, pde1Mse, pde2Mse
+    return uMse, vMse, pMse, contMse
 
 
   def test_step(self, data):
@@ -369,12 +396,6 @@ class NSSelfAttention(NSModelPinn):
     self.validMetrics['loss'].update_state(loss)
     self.validMetrics['data_loss'].update_state(data_loss)
     self.validMetrics['cont_loss'].update_state(contMse)
-#    self.validMetrics['mom_x_loss'].update_state(momxMse)
-#    self.validMetrics['mom_z_loss'].update_state(momzMse)
-#    self.validMetrics['uMse'].update_state(uMse)
-#    self.validMetrics['vMse'].update_state(vMse)
-#    self.validMetrics['pMse'].update_state(pMse)
-#    self.validMetrics['nuMse'].update_state(nuMse)
 
     for key in self.validMetrics:
       self.validStat[key] = self.validMetrics[key].result()
@@ -383,26 +404,21 @@ class NSSelfAttention(NSModelPinn):
   def train_step(self, data):
 
     inputs = data[0]
-    labels = data[1]
  
     low_res_true = inputs[:,:,:,0:3]
     low_res_xz = inputs[:,:,:,3:5] 
-    
 
     with tf.GradientTape(persistent=True) as tape0:
-      # compute the data loss for u, v, p and pde losses for
-      # continuity (0) and NS (1-2)
-      uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse = \
-        self.compute_data_pde_losses(low_res_true, low_res_xz,labels)
-      # replica's loss, divided by global batch size
+
+      uMse, vMse, pMse, contMse = self.compute_loss(low_res_true, low_res_xz)
+
       data_loss  = (1/3)*(uMse   + vMse + pMse)# + pMse + nuMse) 
 
+      cont_loss = contMse
       
       beta_cont = int(data_loss.numpy()/contMse.numpy())
-      #beta_momx = int(data_loss/momxMse.numpy())
-      beta_momx = 0
+      loss = data_loss + self.beta[0]*beta_cont*cont_loss
 
-      loss = data_loss + self.beta[0]*beta_cont*contMse + self.beta[1]*beta_momx*momxMse + self.beta[2]*momzMse
     if self.saveGradStat:
       uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
       vMseGrad    = tape0.gradient(vMse,    self.trainable_variables)
@@ -420,14 +436,7 @@ class NSSelfAttention(NSModelPinn):
     # track loss and mae
     self.trainMetrics['loss'].update_state(loss)
     self.trainMetrics['data_loss'].update_state(data_loss)
-    self.trainMetrics['cont_loss'].update_state(contMse)
-#    self.trainMetrics['mom_x_loss'].update_state(momxMse)
-#    self.trainMetrics['mom_z_loss'].update_state(momzMse)
-#    self.trainMetrics['uMse'].update_state(uMse)
-#    self.trainMetrics['vMse'].update_state(vMse)
-#    self.trainMetrics['pMse'].update_state(pMse)
-#    self.trainMetrics['nuMse'].update_state(nuMse)
-    # track gradients coefficients
+    self.trainMetrics['cont_loss'].update_state(cont_loss)
     if self.saveGradStat:
       self.record_layer_gradient(uMseGrad, 'u_')
       self.record_layer_gradient(vMseGrad, 'v_')
