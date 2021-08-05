@@ -68,7 +68,7 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-X_train = np.load('./cylinder_lr.npy')[0:1]
+X_train = np.load('./cylinder_lr.npy')[0:10]
 print(X_train.shape)
 X_train[:,:,:,3:] = X_train[:,:,:,3:]/500
 Y_train = X_train
@@ -91,9 +91,6 @@ nsNet =  NSAmrScorer(
                patch_size = [args.patchheight,args.patchwidth],
                scorer_filters=[3,16,32],
                scorer_kernel_size = 5,
-               encoder_filters=[3,32,128],
-               decoder_filters=[128,32,3],
-               reconstruction_filters=[3,16],
                batch_size = args.batchsize,
                nbins =4
                )
@@ -128,7 +125,7 @@ nsCB = []
 history = nsNet.fit(x=X_train,
                     y=Y_train,
                     batch_size=args.batchsize, 
-                    validation_data=(X_train,Y_train),\
+                    validation_split = 0.1,
                     initial_epoch=0, 
                     epochs=args.epochs,\
                     verbose=1, 

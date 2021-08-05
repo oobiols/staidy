@@ -193,14 +193,13 @@ class RankingModule(keras.layers.Layer):
         scores = tf.reshape(scores,shape=(self._batch_size*self._n_patches))
 
         bin_per_patch = self.find_bins(scores)
-        tf.print(bin_per_patch,summarize=bin_per_patch.shape[0])
         indices = []
         for i in range(1,self._n_bins+1):
 
          idx  = self.get_patches_bin(bin_per_patch,i)
          indices.append(idx)
 
-        return indices
+        return indices, bin_per_patch
 
     def get_patches_bin(self,bin_per_patch,bin_number):
         
@@ -232,9 +231,6 @@ class NSAmrScorer(NSModelPinn):
                patch_size = [4,16],
                scorer_filters=[3,16,32],
                scorer_kernel_size = 5,
-               encoder_filters=[3,32,128],
-               decoder_filters=[128,32,3],
-               reconstruction_filters=[3,16],
                batch_size=1,
                nbins = 4,
                **kwargs):
@@ -259,10 +255,7 @@ class NSAmrScorer(NSModelPinn):
     self._n_bins = nbins
 
     self._coord_upsampling = []
-    self._coord_patches = []
     self._decoder = []
-    self._reconstruction_conv = []
-    self._reconstruction_deconv = []
     self._output_deconv = []
 
     self._scorer = ScorerNetwork(scorer_filters= scorer_filters,
@@ -306,10 +299,9 @@ class NSAmrScorer(NSModelPinn):
     features , scores = self._scorer(features) #scores shape [BS,NP]
 
 
-    I      = self._ranker(scores) #indices shape [BS*NP]
+    I , bin_per_patch     = self._ranker(scores) #indices shape [BS*NP]
 
     patches = self.from_image_to_patch_sequence(features) #patches shape [BS*NP,h,w,C]
-    print(patches.shape)
     P = []
     XZ = []
     for i , idx in enumerate(I):
@@ -326,7 +318,7 @@ class NSAmrScorer(NSModelPinn):
      P.append(p)
      XZ.append(xz)
 
-    return P, I, XZ
+    return P, I, XZ , bin_per_patch
 
   def compute_data_loss(self,true_patches, predicted_patches,indices):
 
@@ -402,7 +394,7 @@ class NSAmrScorer(NSModelPinn):
     with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(XZ)
 
-        predicted_patches, indices, XZ  = self([low_res_true,XZ])
+        predicted_patches, indices, XZ , bin_per_patch  = self([low_res_true,XZ])
  
         u_pred_patches = []
         v_pred_patches = []
@@ -420,7 +412,7 @@ class NSAmrScorer(NSModelPinn):
 
     contMse = self.compute_pde_loss(u_grad,v_grad)
 
-    return uMse, vMse, pMse, contMse
+    return uMse, vMse, pMse, contMse, bin_per_patch
 
 
   def test_step(self, data):
@@ -430,13 +422,17 @@ class NSAmrScorer(NSModelPinn):
     low_res_true = inputs[:,:,:,0:3]
     low_res_xz = inputs[:,:,:,3:5]
 
-    uMse = 0
-    vMse = 0 
-    pMse = 0
-    nuMse = 0
-    data_loss  = 0.5*(uMse   + vMse )#  + pMse + nuMse) 
-    contMse = 0.0
-    loss = data_loss
+    with tf.GradientTape(persistent=True) as tape0:
+        
+      uMse, vMse, pMse, contMse, bin_per_patch = self.compute_loss(low_res_true, low_res_xz)
+
+      tf.print(bin_per_patch,summarize=bin_per_patch.shape[0])
+      data_loss  = (1/3)*(uMse   + vMse + pMse)# + pMse + nuMse) 
+
+      cont_loss = contMse
+      
+      beta_cont = int(data_loss.numpy()/contMse.numpy())
+      loss = data_loss + self.beta[0]*beta_cont*cont_loss
 
     
     self.validMetrics['loss'].update_state(loss)
@@ -455,7 +451,7 @@ class NSAmrScorer(NSModelPinn):
     low_res_xz = inputs[:,:,:,3:5] 
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, contMse = self.compute_loss(low_res_true, low_res_xz)
+      uMse, vMse, pMse, contMse, _  = self.compute_loss(low_res_true, low_res_xz)
 
       data_loss  = (1/3)*(uMse   + vMse + pMse)# + pMse + nuMse) 
 
@@ -482,13 +478,6 @@ class NSAmrScorer(NSModelPinn):
     self.trainMetrics['loss'].update_state(loss)
     self.trainMetrics['data_loss'].update_state(data_loss)
     self.trainMetrics['cont_loss'].update_state(cont_loss)
-    if self.saveGradStat:
-      self.record_layer_gradient(uMseGrad, 'u_')
-      self.record_layer_gradient(vMseGrad, 'v_')
-      self.record_layer_gradient(pMseGrad, 'p_')
-      self.record_layer_gradient(pdeMse0Grad, 'pde0_')
-      self.record_layer_gradient(pdeMse1Grad, 'pde1_')
-      self.record_layer_gradient(pdeMse2Grad, 'pde2_')
     for key in self.trainMetrics:
       self.trainStat[key] = self.trainMetrics[key].result()
     return self.trainStat
