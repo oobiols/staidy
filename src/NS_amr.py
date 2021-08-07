@@ -168,7 +168,7 @@ class ScorerNetwork(keras.layers.Layer):
      return x
 
 
-class RankingModule(keras.layers.Layer):
+class RankingModule():
     def __init__(self,
                     nbins,
                     batch_size=1,
@@ -183,7 +183,7 @@ class RankingModule(keras.layers.Layer):
         self._batch_size = batch_size
         self._n_patches = n_patches
 
-    def call(self,inputs):
+    def __call__(self,inputs):
      
         scores = inputs
 
@@ -199,7 +199,7 @@ class RankingModule(keras.layers.Layer):
          idx  = self.get_patches_bin(bin_per_patch,i)
          indices.append(idx)
 
-        return indices, bin_per_patch
+        return indices
 
     def get_patches_bin(self,bin_per_patch,bin_number):
         
@@ -290,18 +290,37 @@ class NSAmrScorer(NSModelPinn):
      self._coord_upsampling.append(keras.layers.UpSampling2D(size=level,interpolation="bilinear"))
      level=2*level
 
+  def _ranking(self,scores):
+
+        scores = tf.reshape(scores,shape=(self._batch_size*self._n_patches,1))
+        bins = np.linspace(0,1.01,self._n_bins+1).tolist()
+        bin_per_patch = math_ops._bucketize(scores, boundaries=bins)
+
+        indices = []
+
+        for i in range(1,self._n_bins+1):
+
+         bin = tf.equal(bin_per_patch,i)
+         idx = tf.where(bin[:,0])
+         indices.append(idx)
+
+        return indices
+
+
+
 
   def call(self, inputs):
 
     features = inputs[0]
     coordinates = inputs[1]
-
+   
     features , scores = self._scorer(features) #scores shape [BS,NP]
 
+    I     = self._ranking(scores) #indices shape [BS*NP]
 
-    I , bin_per_patch     = self._ranker(scores) #indices shape [BS*NP]
+    patches     = self.from_image_to_patch_sequence(features) #patches shape [BS*NP,h,w,C]
+    coordinates = self.from_image_to_patch_sequence(coordinates) #patches shape [BS*NP,h,w,C]
 
-    patches = self.from_image_to_patch_sequence(features) #patches shape [BS*NP,h,w,C]
     P = []
     XZ = []
     for i , idx in enumerate(I):
@@ -318,7 +337,7 @@ class NSAmrScorer(NSModelPinn):
      P.append(p)
      XZ.append(xz)
 
-    return P, I, XZ , bin_per_patch
+    return P, I, XZ 
 
   def compute_data_loss(self,true_patches, predicted_patches,indices):
 
@@ -369,13 +388,12 @@ class NSAmrScorer(NSModelPinn):
   def from_image_to_patch_sequence(self, x):
 
     channels = x.shape[-1]
-
+  
     x = tf.image.extract_patches( images = x, 
                                             sizes = [1,self._rows_patch,self._columns_patch,1],
                                             strides = [1,self._rows_patch,self._columns_patch,1],
                                             rates=[1,1,1,1],
                                             padding="VALID")
-
 
     x = tf.reshape(x,
                    shape=(self._batch_size*self._n_patches,
@@ -388,13 +406,13 @@ class NSAmrScorer(NSModelPinn):
   def compute_loss(self, low_res_true, low_res_xz):
 
     
-    XZ  = self.from_image_to_patch_sequence(low_res_xz)
     true_patches = self.from_image_to_patch_sequence(low_res_true)
+    XZ = low_res_xz
 
     with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(XZ)
 
-        predicted_patches, indices, XZ , bin_per_patch  = self([low_res_true,XZ])
+        predicted_patches, indices, XZ = self([low_res_true,XZ])
  
         u_pred_patches = []
         v_pred_patches = []
@@ -412,7 +430,7 @@ class NSAmrScorer(NSModelPinn):
 
     contMse = self.compute_pde_loss(u_grad,v_grad)
 
-    return uMse, vMse, pMse, contMse, bin_per_patch
+    return uMse, vMse, pMse, contMse
 
 
   def test_step(self, data):
@@ -424,14 +442,13 @@ class NSAmrScorer(NSModelPinn):
 
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, contMse, bin_per_patch = self.compute_loss(low_res_true, low_res_xz)
+      uMse, vMse, pMse, contMse = self.compute_loss(low_res_true, low_res_xz)
 
-      tf.print(bin_per_patch,summarize=bin_per_patch.shape[0])
       data_loss  = (1/3)*(uMse   + vMse + pMse)# + pMse + nuMse) 
 
       cont_loss = contMse
       
-      beta_cont = int(data_loss.numpy()/contMse.numpy())
+      beta_cont = int(data_loss/contMse)
       loss = data_loss + self.beta[0]*beta_cont*cont_loss
 
     
@@ -449,15 +466,16 @@ class NSAmrScorer(NSModelPinn):
  
     low_res_true = inputs[:,:,:,0:3]
     low_res_xz = inputs[:,:,:,3:5] 
+
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, contMse, _  = self.compute_loss(low_res_true, low_res_xz)
+      uMse, vMse, pMse, contMse = self.compute_loss(low_res_true, low_res_xz)
 
       data_loss  = (1/3)*(uMse   + vMse + pMse)# + pMse + nuMse) 
 
       cont_loss = contMse
       
-      beta_cont = int(data_loss.numpy()/contMse.numpy())
+      beta_cont = int(data_loss/contMse)
       loss = data_loss + self.beta[0]*beta_cont*cont_loss
 
     if self.saveGradStat:

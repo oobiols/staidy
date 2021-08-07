@@ -8,6 +8,7 @@ from NS_amr import *
 from data_generator import DataGenerator, SimpleGenerator
 from Dataset import Dataset
 from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split
 import argparse
 import h5py
 import plot
@@ -68,10 +69,15 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-X_train = np.load('./cylinder_lr.npy')[0:10]
-print(X_train.shape)
-X_train[:,:,:,3:] = X_train[:,:,:,3:]/500
-Y_train = X_train
+X = np.load('./channelflow_lr.npy')
+
+X, x, _, _ = train_test_split(X,X,test_size=0.1)
+
+X = X[0:1376]
+X[:,:,:,3:] = X[:,:,:,3:]/10
+
+x = x[0:128]
+x[:,:,:,3:] = x[:,:,:,3:]/10
 
 name = "epochs_"+str(args.epochs)+\
        "_lr_"+str(args.learningrate)+\
@@ -122,10 +128,10 @@ nsNet.compile(optimizer=optimizer,
 #
 #
 nsCB = []
-history = nsNet.fit(x=X_train,
-                    y=Y_train,
+history = nsNet.fit(x=X,
+                    y=X,
                     batch_size=args.batchsize, 
-                    validation_split = 0.1,
+                    validation_data=(x,x),
                     initial_epoch=0, 
                     epochs=args.epochs,\
                     verbose=1, 
@@ -134,4 +140,4 @@ history = nsNet.fit(x=X_train,
 
 nsNet.summary()
 plot.history(history,name=name)
-#nsNet.save('./models/'+name)
+nsNet.save('./models/'+name)
