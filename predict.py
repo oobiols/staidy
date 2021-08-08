@@ -45,16 +45,15 @@ amr.build(input_shape=[(None,args.height,args.width,3),(None,args.height,args.wi
 amr.load_weights('./weights.h5')
 
 
-x = np.load('channelflow_lr.npy')[0:32]
+x = np.load('channelflow_lr.npy')[0:1]
 
 flowvar = x[:,:,:,0:3]
-xz = x[:,:,:,3:]
+xz = x[:,:,:,3:]/10
 
 input=[flowvar,xz]
 
-p,i,_ = model.predict(input,batch_size=args.batchsize,verbose=1)
+p,idx,_ = amr.predict(input,batch_size=args.batchsize,verbose=1)
 
-patch = p[0]
-print(patch.shape)
-
-
+for i,patch in enumerate(p):
+  np.save('./patch_'+str(i)
+ 
