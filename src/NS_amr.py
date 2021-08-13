@@ -4,105 +4,31 @@ import numpy as np
 from NS_model import NSModelPinn
 from tensorflow.python.ops import math_ops
 
-class ResidualBlock(keras.layers.Layer):
+class EncoderDecoder(keras.layers.Layer):
     def __init__(self,
-                 filters=16,
-                 kernel_size=5,
-                 **kwargs):
+		 filters=[3,16,32],
+		 strides=1,
+                  **kwargs):
 
-        super(ResidualBlock,self).__init__(**kwargs)
-        
-        self.Conv1 = keras.layers.Conv2D(filters=filters,
-                                         kernel_size=(1,1),
-                                         strides=(1,1),
-                                         activation=tf.nn.leaky_relu,
-                                         padding="same")
+        super(EncoderDecoder,self).__init__(**kwargs)
 
-        self.BN1 = keras.layers.BatchNormalization(axis=-1)
+        self._enc = []
+        self._dec = []
+        self._s = strides
 
-        self.Conv2 = keras.layers.Conv2D(filters=filters,
-                                         kernel_size=(kernel_size,kernel_size),
-                                         strides=(1,1),
-                                         activation=tf.nn.leaky_relu,
-                                         padding="same")
-
-        self.BN2 = keras.layers.BatchNormalization(axis=-1)
-
-        self.Conv3 = keras.layers.Conv2D(filters=filters,
-                                         kernel_size=(1,1),
-                                         strides=(1,1),
-                                         activation=tf.nn.leaky_relu,
-                                         padding="same")
-
-        self.BN3 = keras.layers.BatchNormalization(axis=-1)
-
-        self.Add = keras.layers.Add()
-
-    def call(self,inputs):
-
-       x1 = self.Conv1(inputs)
-       #x = self.BN1(x1)dd
-       x = self.Conv2(x1)
-       #x = self.BN2(x)
-       x = self.Conv3(x)
-       #x = self.BN3(x)
-       x = self.Add([x,x1])
-
-       return x
-
-class Mlp(keras.layers.Layer):
-
-    def __init__(self,
-                 hidden_units = [10,10],
-                 dropout_rate = 0,
-                 **kwargs):
-
-        super(Mlp,self).__init__(**kwargs)
-        
-        self._layers = []
-
-        for i in hidden_units:    
-            self._layers.append( keras.layers.Dense(i,activation=tf.nn.leaky_relu))
-            self._layers.append( keras.layers.Dropout(dropout_rate))
+        for filter in filters:
+         self._enc.append(keras.layers.Conv2D(filters=filter,kernel_size=5,strides=self._s,padding="same", activation=tf.nn.leaky_relu))
+        for filter in reversed(filters):
+         self._dec.append(keras.layers.Conv2DTranspose(filters=filter,kernel_size=5,strides=self._s,padding="same", activation=tf.nn.leaky_relu))
 
     def call(self,inputs):
         x = inputs
-        for layer in self._layers:
-            x  = layer(x)
+        for layer in self._enc:
+         x = layer(x)
+        for layer in self._dec:
+         x = layer(x)
         return x
 
-
-class MultiHeadAttention(keras.layers.Layer):
-
-    def __init__(self,
-                 num_heads = 2,
-                 proj_dimension = 32,
-                 **kwargs):
-
-        super(MultiHeadAttention,self).__init__(**kwargs)
-        
-        self.transformer_units=[proj_dimension*2,proj_dimension]
-
-        self.layernorm_1 = keras.layers.LayerNormalization(epsilon=1e-6)
-        self.mha         = keras.layers.MultiHeadAttention(num_heads=num_heads, 
-                                                    key_dim=proj_dimension, 
-                                                    dropout=0.1) 
-        self.add_1         = keras.layers.Add()
-        self.layernorm_2   = keras.layers.LayerNormalization(epsilon=1e-6)
-        self.mlp           = Mlp(hidden_units=self.transformer_units,dropout_rate=0)
-        self.add_2         = keras.layers.Add()
-
-
-    def call(self,inputs):
-
-       x = self.layernorm_1(inputs)
-       attention_output, attention_scores= self.mha(x,x,return_attention_scores=True)
-       x2 = self.add_1([attention_output,inputs])
-       x3 = self.layernorm_2(x2)
-       x3 = self.mlp(x2)
-       x  = self.add_2([x3,x2])
-
-       return x , attention_scores
 
 
 class ScorerNetwork(keras.layers.Layer):
@@ -167,69 +93,29 @@ class ScorerNetwork(keras.layers.Layer):
  
      return x
 
-
-class RankingModule():
+class UpSampling2DBicubic(keras.layers.Layer):
     def __init__(self,
-                    nbins,
-                    batch_size=1,
-                    n_patches = 16,
-                    self_attention=False,
-                    **kwargs):
+		 size=(32,128),
+                 **kwargs):
 
-        super(RankingModule,self).__init__(**kwargs)
+        super(UpSampling2DBicubic,self).__init__(**kwargs)
 
-        self._self_attention = self_attention
-        self._n_bins = nbins
-        self._batch_size = batch_size
-        self._n_patches = n_patches
+        self._size = size
 
-    def __call__(self,inputs):
-     
-        scores = inputs
+    def call(self,inputs):
 
-        if (self._self_attention):
-         scores = self.reduce_scores(scores)
+         x = inputs
+         x = tf.image.resize(x, size=self._size,method='bicubic')
 
-        scores = tf.reshape(scores,shape=(self._batch_size*self._n_patches))
+         return x
 
-        bin_per_patch = self.find_bins(scores)
-        indices = []
-        for i in range(1,self._n_bins+1):
-
-         idx  = self.get_patches_bin(bin_per_patch,i)
-         indices.append(idx)
-
-        return indices
-
-    def get_patches_bin(self,bin_per_patch,bin_number):
-        
-        bin = tf.equal(bin_per_patch,bin_number)
-        i = tf.where(bin)
-
-        return i
-
-    def find_bins(self,scores):
-
-     bins = np.linspace(0,1.01,self._n_bins+1).tolist()
-     bin_per_patch = math_ops._bucketize(scores, boundaries=bins)
-
-     return bin_per_patch
-
-    def reduce_scores(self,scores):
-
-      # finding per patch score (finding from more to least important patches)
-      scores = tf.reduce_sum(scores,axis=1,keepdims=False)
-      scores = tf.reduce_sum(scores,axis=1,keepdims=False)
-
-      # min max scaling between 0 and 1
-      scores = tf.divide(tf.subtract(scores,tf.reduce_min(scores)),tf.subtract(tf.reduce_max(scores),tf.reduce_min(scores)))
-      return scores
 
 class NSAmrScorer(NSModelPinn):
   def __init__(self, 
                image_size = [32,128,6],
                patch_size = [4,16],
                scorer_filters=[3,16,32],
+               filters = [3,16,32,128],
                scorer_kernel_size = 5,
                batch_size=1,
                nbins = 4,
@@ -253,41 +139,36 @@ class NSAmrScorer(NSModelPinn):
     self._n_patch_x = self._columns_image//self._columns_patch
     self._n_patches = self._n_patch_y * self._n_patch_x
     self._n_bins = nbins
-
+    self._upsampling = []
     self._coord_upsampling = []
     self._decoder = []
-    self._output_deconv = []
-
+    self._encoder = []
+    self._enc_dec = []
     self._scorer = ScorerNetwork(scorer_filters= scorer_filters,
                                 kernel_size= scorer_kernel_size,
                                 patch_size= patch_size)
 
 
-    self._ranker = RankingModule(self._n_bins,
-                                 self._batch_size,
-                                 self._n_patches,
-                                 self_attention=False)
-
-
-    for filter in reversed(scorer_filters):
+    for filter in filters:
+        self._encoder.append(keras.layers.Conv2D(filters=filter,
+                                                                kernel_size=5,
+                                                                strides=1,
+                                                                activation=tf.nn.leaky_relu,
+                                                                padding="same"))
+    for filter in reversed(filters):
         self._decoder.append(keras.layers.Conv2DTranspose(filters=filter,
                                                                 kernel_size=5,
                                                                 strides=1,
                                                                 activation=tf.nn.leaky_relu,
                                                                 padding="same"))
-
-
-    for _ in range(self._n_bins-1):
-
-     self._output_deconv.append(keras.layers.Conv2DTranspose(filters=1,
-                                                                kernel_size=5,
-                                                                strides=2,
-                                                                activation=tf.nn.leaky_relu,
-                                                                padding="same"))
        
+    #self._enc_dec.append(EncoderDecoder(filters=filters,strides=1))
     level=1
     for _ in range(self._n_bins):
-     self._coord_upsampling.append(keras.layers.UpSampling2D(size=level,interpolation="bilinear"))
+     r = self._rows_patch * level
+     c = self._columns_patch * level
+     self._upsampling.append(UpSampling2DBicubic(size=(r,c)))
+     self._coord_upsampling.append(UpSampling2DBicubic(size=(r,c)))
      level=2*level
 
   def _ranking(self,scores):
@@ -295,7 +176,6 @@ class NSAmrScorer(NSModelPinn):
         scores = tf.reshape(scores,shape=(self._batch_size*self._n_patches,1))
         bins = np.linspace(0,1.01,self._n_bins+1).tolist()
         bin_per_patch = math_ops._bucketize(scores, boundaries=bins)
-
         indices = []
 
         for i in range(1,self._n_bins+1):
@@ -306,17 +186,16 @@ class NSAmrScorer(NSModelPinn):
 
         return indices
 
-
-
-
   def call(self, inputs):
 
-    features = inputs[0]
+    flowvar = inputs[0]
     coordinates = inputs[1]
    
-    features , scores = self._scorer(features) #scores shape [BS,NP]
+    features , scores = self._scorer(flowvar) #scores shape [BS,NP]
 
     I     = self._ranking(scores) #indices shape [BS*NP]
+
+    features = tf.concat([flowvar,features],axis=-1)
 
     patches     = self.from_image_to_patch_sequence(features) #patches shape [BS*NP,h,w,C]
     coordinates = self.from_image_to_patch_sequence(coordinates) #patches shape [BS*NP,h,w,C]
@@ -325,12 +204,17 @@ class NSAmrScorer(NSModelPinn):
     XZ = []
     for i , idx in enumerate(I):
      p = tf.squeeze(tf.gather(patches,idx,axis=0),axis=1)
-     for j in range(i):
-      p = self._output_deconv[j](p)
-
+     p = self._upsampling[i](p)
      xz = tf.squeeze(tf.gather(coordinates,idx,axis=0),axis=1)
      xz = self._coord_upsampling[i](xz)
+
      p = tf.concat([p,xz],axis=-1)
+
+     #p = self._enc_dec[0](p)
+
+     for layer in self._encoder:
+      p = layer(p)
+
      for layer in self._decoder:
       p = layer(p)
 
@@ -348,24 +232,26 @@ class NSAmrScorer(NSModelPinn):
     lr_predicted_patches = predicted_patches[0]
 
     for i, idx in enumerate(indices):
+    # i = 0
+     #idx = indices[0]
 
-        true_p = tf.gather(true_patches,idx,axis=0)
-        true_p = tf.reshape(true_p,
+     true_p = tf.gather(true_patches,idx,axis=0)
+     true_p = tf.reshape(true_p,
                             shape=(true_p.shape[0],
                                     lr_predicted_patches.shape[1],
                                     lr_predicted_patches.shape[2],
                                     lr_predicted_patches.shape[3]))
-        pred_p = predicted_patches[i]
-        pred_p = tf.image.resize(pred_p,
-                                 size =(self._rows_patch,self._columns_patch),
-                                 method='bicubic')
-        
-        if true_p.shape[0] > 0: 
+     pred_p = predicted_patches[i]
+     pred_p = tf.image.resize(pred_p,
+                            size =(self._rows_patch,self._columns_patch),
+                            method='bicubic')
+   
+     if true_p.shape[0] > 0: 
 
-            cont += 1
-            uMse += tf.reduce_mean(tf.square(true_p[:,:,:,0] - pred_p[:,:,:,0]))
-            vMse += tf.reduce_mean(tf.square(true_p[:,:,:,1] - pred_p[:,:,:,1]))
-            pMse += tf.reduce_mean(tf.square(true_p[:,:,:,2] - pred_p[:,:,:,2]))
+       cont += 1
+       uMse += tf.reduce_mean(tf.square(true_p[:,:,:,0] - pred_p[:,:,:,0]))
+       vMse += tf.reduce_mean(tf.square(true_p[:,:,:,1] - pred_p[:,:,:,1]))
+       pMse += tf.reduce_mean(tf.square(true_p[:,:,:,2] - pred_p[:,:,:,2]))
 
 
     return (1/cont)*uMse, (1/cont)*vMse, (1/cont)*pMse

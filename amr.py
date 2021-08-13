@@ -22,12 +22,6 @@ sess = tf.compat.v1.Session(config=config)
 
 keras.backend.set_floatx('float32')
 parser = argparse.ArgumentParser()
-parser.add_argument('-st', '--strides', type=int, default=1,\
-                    help='height of the single image')
-parser.add_argument('-a', '--architecture', type=str, default="deep",\
-                    help='height of the single image')
-parser.add_argument('-ke', '--kernelsize', type=int, default=5,\
-                    help='height of the single image')
 parser.add_argument('-he', '--height', type=int, default=64,\
                     help='height of the single image')
 parser.add_argument('-w', '--width', type=int, default=256,\
@@ -44,21 +38,11 @@ parser.add_argument('-e', '--epochs', type=int, default=10,\
                     help='number of epochs to train for')
 parser.add_argument('-bs', '--batchsize', type=int, default=64, \
                     help='global batch size')
-parser.add_argument('-rlr', '--reducelr', type=int, default=0, \
-                    help='include RLRoP callback')
-parser.add_argument('-pa', '--patience', type=int, default=10, \
-                    help='number of patience epochs for RLRoP')
-parser.add_argument('-m', '--masking', type=int, default=1, \
+parser.add_argument('-ph', '--patchheight', type=int, default=32, \
                     help='mask some patches')
-parser.add_argument('-hp', '--patchheight', type=int, default=32, \
+parser.add_argument('-pw', '--patchwidth', type=int, default=128, \
                     help='mask some patches')
-parser.add_argument('-wp', '--patchwidth', type=int, default=128, \
-                    help='mask some patches')
-parser.add_argument('-ah', '--attention', type=int, default=12, \
-                    help='number of attention heads')
-parser.add_argument('-pr', '--projection', type=int, default=64, \
-                    help='number of projection dimentions for the patch encoder')
-parser.add_argument('-t', '--transformers', type=int, default=12, \
+parser.add_argument('-nb', '--numberbins', type=int, default=4, \
                     help='number of projection dimentions for the patch encoder')
 parser.add_argument('-mn', '--modelname', type=str, default="amr", \
                     help='number of projection dimentions for the patch encoder')
@@ -69,64 +53,41 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-X = np.load('./channelflow_lr.npy')
+X = np.load('./cylinder_lr.npy')
+X[:,:,:,3:] /= 500
 
-X, x, _, _ = train_test_split(X,X,test_size=0.1)
+#X, x, _, _ = train_test_split(X,X,test_size=0.1)
+#
+#ntrain = X.shape[0]
+#nval = x.shape[0]
+#
+#ntrain = ntrain//args.batchsize
+#nval = nval//args.batchsize
 
-X = X[0:1376]
-X[:,:,:,3:] = X[:,:,:,3:]/10
+X = X[0:1000]
+x = X[0:4]
 
-x = x[0:128]
-x[:,:,:,3:] = x[:,:,:,3:]/10
-
-name = "epochs_"+str(args.epochs)+\
+name = "AMR_epochs_"+str(args.epochs)+\
        "_lr_"+str(args.learningrate)+\
        "_bs_"+str(args.batchsize)+\
        "_reg_"+str(args.lambdacont)+\
-       "_RLR_"+str(args.reducelr)+\
-       "_arch_"+str(args.architecture)+\
-       args.modelname
-
-if args.architecture == "deep":
- filters=[3,8,16]
-if args.architecture == "shallow":
- filters = [3,8]
+       "_"+args.modelname
 
 nsNet =  NSAmrScorer(
                image_size = [args.height,args.width,5],
                patch_size = [args.patchheight,args.patchwidth],
-               scorer_filters=[3,16,32],
+               scorer_filters=[4,16,32],
+               filters = [3,16,64],
                scorer_kernel_size = 5,
                batch_size = args.batchsize,
-               nbins =4
+               nbins =args.numberbins,
+    	       beta =[args.lambdacont,1.0,1.0]
                )
 
 optimizer = keras.optimizers.Adam(learning_rate=args.learningrate)
 nsNet.compile(optimizer=optimizer,
 	      run_eagerly=True)
 
-#nsCB=[]
-#
-#
-#if (args.reducelr):
-# nsCB=[    keras.callbacks.ReduceLROnPlateau(monitor='loss',\
-#						 factor=0.8,\
-#						 min_delta=1e-3,\
-#      						 patience=args.patience,
-#						 min_lr=1e-7)
-#      ]
-#
-#
-#nsCB = [keras.callbacks.EarlyStopping(monitor="val_loss",\
-#					min_delta=1e-5,\
-#					patience = args.patience,\
-#					    verbose=1,\
-#					    mode="auto",\
-#					    baseline=None,\
-#					    restore_best_weights=False,
-#)]
-#
-#
 nsCB = []
 history = nsNet.fit(x=X,
                     y=X,
@@ -138,6 +99,6 @@ history = nsNet.fit(x=X,
                	    callbacks=nsCB,
               	    shuffle=True)
 
-nsNet.summary()
+#nsNet.summary()
 plot.history(history,name=name)
 nsNet.save('./models/'+name)

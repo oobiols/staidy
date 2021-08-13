@@ -24,6 +24,8 @@ parser.add_argument('-bs', '--batchsize', type=int, default=1,\
                     help='batch size for model.predict')
 parser.add_argument('-mn', '--modelname', type=str, default='name',\
                     help='batch size for model.predict')
+parser.add_argument('-nb', '--numberbins', type=int, default=4,\
+                    help='batch size for model.predict')
 
 
 args = parser.parse_args()
@@ -34,26 +36,26 @@ model.save_weights('./weights.h5')
 amr =  NSAmrScorer(
                image_size = [args.height,args.width,5],
                patch_size = [args.patchheight,args.patchwidth],
-               scorer_filters=[3,16,32],
+               scorer_filters=[4,16,32],
+               filters = [3,16,64],
                scorer_kernel_size = 5,
                batch_size = args.batchsize,
-               nbins =4
+               nbins =args.numberbins
  
               )
 
 amr.build(input_shape=[(None,args.height,args.width,3),(None,args.height,args.width,2)])
 amr.load_weights('./weights.h5')
 
-
-x = np.load('channelflow_lr.npy')[0:1]
+x = np.load('cylinder_lr.npy')[0:1]
 
 flowvar = x[:,:,:,0:3]
-xz = x[:,:,:,3:]/10
+xz = x[:,:,:,3:]/500
 
 input=[flowvar,xz]
 
 p,idx,_ = amr.predict(input,batch_size=args.batchsize,verbose=1)
 
 for i,patch in enumerate(p):
-  np.save('./patch_'+str(i)
- 
+  np.save('./saved_patches/patch_'+str(i)+'.npy',patch)
+  np.save('./saved_indices/idx_'+str(i)+'.npy',idx[i]) 
