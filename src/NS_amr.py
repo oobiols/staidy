@@ -170,7 +170,12 @@ class NSAmrScorer(NSModelPinn):
     for _ in range(self._n_bins):
      r = self._rows_patch * level
      c = self._columns_patch * level
-     self._upsampling.append(UpSampling2DBicubic(size=(r,c)))
+     self._upsampling.append(keras.layers.Conv2DTranspose(filters=self._channels_out+1,
+                                                kernel_size=5,
+                                                strides=level,
+                                                activation=tf.nn.leaky_relu,
+                                                padding="same"))
+
      self._coord_upsampling.append(UpSampling2DBicubic(size=(r,c)))
      level=2*level
 
@@ -228,7 +233,6 @@ class NSAmrScorer(NSModelPinn):
 
   def compute_data_loss(self,true_patches, predicted_patches,indices):
 
-
     uMse = 0.0
     vMse = 0.0
     pMse = 0.0
@@ -261,20 +265,55 @@ class NSAmrScorer(NSModelPinn):
 
     return (1/cont)*uMse , (1/cont)*vMse , (1/cont)*pMse , (1/cont)*nuMse
 
-  def compute_pde_loss(self,u_grad,v_grad):
+  def compute_pde_loss(self,u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2):
 
-    contMse = 0
+    contMse = 0.0
+    momxMse = 0.0
+    momyMse = 0.0
     cont = 0.0
     for i , _ in enumerate(u_grad):
+
+     u = u_pred_patches[i]
+     v = v_pred_patches[i]
+     nu  = nu_pred_patches[i]
+
      grad = u_grad[i]
      ux = grad[:,:,:,0]
+     uz = grad[:,:,:,1]
+
      grad = v_grad[i]
+     vx = grad[:,:,:,0]
      vz = grad[:,:,:,1]
+
+     grad = p_grad[i]
+     px = grad[:,:,:,0]
+     pz = grad[:,:,:,1]
+     
+     grad = nu_grad[i]
+     nux = grad[:,:,:,0]
+     nuz = grad[:,:,:,1]
+
+     grad = u_grad_2[i]
+     uxx = grad[:,:,:,0]
+     uzz = grad[:,:,:,1]
+
+     grad = v_grad_2[i]
+     vxx = grad[:,:,:,0]
+     vzz = grad[:,:,:,1]
+
      if ux.shape[0]>0:
+      #continuity   
       contMse += tf.reduce_mean(tf.square(ux+vz))
+      #momx
+      momx = u * ux + v*uz + px - 2*nux*ux - nuz*(uz + vx) - (1e-3 + nu)*(uxx + uzz)
+      momxMse += tf.reduce_mean(tf.square(momx))
+      #momy
+      momy = u * vx + v*vz + pz - 2*nuz*vz - nux*(uz + vx) - (1e-3 + nu)*(vxx + vzz)
+      momyMse += tf.reduce_mean(tf.square(momy))
+
       cont = cont+1
 
-    return (1/cont)*contMse
+    return (1/cont)*contMse, (1/cont)*momxMse, (1/cont)*momyMse
 
   def from_image_to_patch_sequence(self, x):
 
@@ -300,7 +339,10 @@ class NSAmrScorer(NSModelPinn):
     true_patches = self.from_image_to_patch_sequence(low_res_true)
     XZ = low_res_xz
 
-    with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
+    with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
+      tape2.watch(XZ)
+
+      with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
         tape1.watch(XZ)
 
         predicted_patches, indices, XZ = self([low_res_true,XZ])
@@ -308,19 +350,30 @@ class NSAmrScorer(NSModelPinn):
         u_pred_patches = []
         v_pred_patches = []
         p_pred_patches = []
+        nu_pred_patches = []
         for p in predicted_patches:
             u_pred_patches.append(p[:,:,:,0])
             v_pred_patches.append(p[:,:,:,1])
             p_pred_patches.append(p[:,:,:,2])
+            nu_pred_patches.append(p[:,:,:,3])
+            
 
-    u_grad = tape1.gradient(u_pred_patches,XZ)
-    v_grad = tape1.gradient(v_pred_patches,XZ)
+      u_grad = tape1.gradient(u_pred_patches,XZ)
+      v_grad = tape1.gradient(v_pred_patches,XZ)
+      p_grad = tape1.gradient(p_pred_patches,XZ)
+      nu_grad = tape1.gradient(nu_pred_patches,XZ)
+      del tape1
+
+    u_grad_2 = tape2.gradient(u_grad,XZ)
+    v_grad_2 = tape2.gradient(v_grad,XZ)
+
+    del tape2
 
     uMse, vMse, pMse , nuMse= self.compute_data_loss(true_patches, predicted_patches,indices)
 
-    contMse = self.compute_pde_loss(u_grad,v_grad)
+    contMse, momxMse, momzMse = self.compute_pde_loss(u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2)
 
-    return uMse, vMse, pMse, nuMse, contMse
+    return uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse
 
 
   def test_step(self, data):
@@ -332,19 +385,30 @@ class NSAmrScorer(NSModelPinn):
 
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, nuMse, contMse = self.compute_loss(low_res_true, low_res_xz)
+      uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz)
 
       data_loss  = (1/4)*(nuMse + uMse   + vMse + pMse)
 
       cont_loss = contMse
       
       beta_cont = int(data_loss/contMse)
-      loss = data_loss + self.beta[0]*beta_cont*cont_loss
+
+      momx_loss = momxMse
+
+      beta_momx = int(data_loss/momxMse)
+
+      momy_loss = momyMse
+
+      beta_momy = int(data_loss/momyMse)
+
+      loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx*momx_loss + beta_momy*momy_loss)
 
     
     self.validMetrics['loss'].update_state(loss)
     self.validMetrics['data_loss'].update_state(data_loss)
     self.validMetrics['cont_loss'].update_state(contMse)
+    self.validMetrics['momx_loss'].update_state(momx_loss)
+    self.validMetrics['momy_loss'].update_state(momy_loss)
 
     for key in self.validMetrics:
       self.validStat[key] = self.validMetrics[key].result()
@@ -359,14 +423,23 @@ class NSAmrScorer(NSModelPinn):
 
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, nuMse, contMse = self.compute_loss(low_res_true, low_res_xz)
+      uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz)
 
-      data_loss  = (1/4)*(uMse   + vMse + pMse + nuMse) 
+      data_loss  = (1/4)*(nuMse + uMse   + vMse + pMse)
 
       cont_loss = contMse
       
       beta_cont = int(data_loss/contMse)
-      loss = data_loss + self.beta[0]*beta_cont*cont_loss
+
+      momx_loss = momxMse
+
+      beta_momx = int(data_loss/momxMse)
+
+      momy_loss = momyMse
+
+      beta_momy = int(data_loss/momyMse)
+
+      loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx*momx_loss + beta_momy*momy_loss)
 
     lossGrad = tape0.gradient(loss, self.trainable_variables)
     del tape0
@@ -379,6 +452,8 @@ class NSAmrScorer(NSModelPinn):
     self.trainMetrics['loss'].update_state(loss)
     self.trainMetrics['data_loss'].update_state(data_loss)
     self.trainMetrics['cont_loss'].update_state(cont_loss)
+    self.trainMetrics['momx_loss'].update_state(momx_loss)
+    self.trainMetrics['momy_loss'].update_state(momy_loss)
     for key in self.trainMetrics:
       self.trainStat[key] = self.trainMetrics[key].result()
     return self.trainStat
