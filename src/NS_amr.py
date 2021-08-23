@@ -149,13 +149,16 @@ class NSAmrScorer(NSModelPinn):
                                 patch_size= patch_size)
 
 
-    for filter in filters:
+    self._filters =  filters
+    self._filters[0] = self._channels_out
+
+    for filter in self._filters:
         self._encoder.append(keras.layers.Conv2D(filters=filter,
                                                                 kernel_size=5,
                                                                 strides=1,
                                                                 activation=tf.nn.leaky_relu,
                                                                 padding="same"))
-    for filter in reversed(filters):
+    for filter in reversed(self._filters):
         self._decoder.append(keras.layers.Conv2DTranspose(filters=filter,
                                                                 kernel_size=5,
                                                                 strides=1,
@@ -217,7 +220,7 @@ class NSAmrScorer(NSModelPinn):
 
      for layer in self._decoder:
       p = layer(p)
-
+     
      P.append(p)
      XZ.append(xz)
 
@@ -225,10 +228,12 @@ class NSAmrScorer(NSModelPinn):
 
   def compute_data_loss(self,true_patches, predicted_patches,indices):
 
-    uMse=0.0
-    vMse=0.0
-    pMse=0.0
-    cont = 0.0 
+
+    uMse = 0.0
+    vMse = 0.0
+    pMse = 0.0
+    nuMse = 0.0
+    cont = 0.0
     lr_predicted_patches = predicted_patches[0]
 
     for i, idx in enumerate(indices):
@@ -252,9 +257,9 @@ class NSAmrScorer(NSModelPinn):
        uMse += tf.reduce_mean(tf.square(true_p[:,:,:,0] - pred_p[:,:,:,0]))
        vMse += tf.reduce_mean(tf.square(true_p[:,:,:,1] - pred_p[:,:,:,1]))
        pMse += tf.reduce_mean(tf.square(true_p[:,:,:,2] - pred_p[:,:,:,2]))
+       nuMse += tf.reduce_mean(tf.square(true_p[:,:,:,3] - pred_p[:,:,:,3]))
 
-
-    return (1/cont)*uMse, (1/cont)*vMse, (1/cont)*pMse
+    return (1/cont)*uMse , (1/cont)*vMse , (1/cont)*pMse , (1/cont)*nuMse
 
   def compute_pde_loss(self,u_grad,v_grad):
 
@@ -311,26 +316,25 @@ class NSAmrScorer(NSModelPinn):
     u_grad = tape1.gradient(u_pred_patches,XZ)
     v_grad = tape1.gradient(v_pred_patches,XZ)
 
-
-    uMse, vMse, pMse = self.compute_data_loss(true_patches, predicted_patches,indices)
+    uMse, vMse, pMse , nuMse= self.compute_data_loss(true_patches, predicted_patches,indices)
 
     contMse = self.compute_pde_loss(u_grad,v_grad)
 
-    return uMse, vMse, pMse, contMse
+    return uMse, vMse, pMse, nuMse, contMse
 
 
   def test_step(self, data):
 
     inputs = data[0]
  
-    low_res_true = inputs[:,:,:,0:3]
-    low_res_xz = inputs[:,:,:,3:5]
+    low_res_true = inputs[:,:,:,:-2]
+    low_res_xz = inputs[:,:,:,-2:]
 
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, contMse = self.compute_loss(low_res_true, low_res_xz)
+      uMse, vMse, pMse, nuMse, contMse = self.compute_loss(low_res_true, low_res_xz)
 
-      data_loss  = (1/3)*(uMse   + vMse + pMse)# + pMse + nuMse) 
+      data_loss  = (1/4)*(nuMse + uMse   + vMse + pMse)
 
       cont_loss = contMse
       
@@ -350,27 +354,20 @@ class NSAmrScorer(NSModelPinn):
 
     inputs = data[0]
  
-    low_res_true = inputs[:,:,:,0:3]
-    low_res_xz = inputs[:,:,:,3:5] 
+    low_res_true = inputs[:,:,:,:-2]
+    low_res_xz = inputs[:,:,:,-2:] 
 
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, contMse = self.compute_loss(low_res_true, low_res_xz)
+      uMse, vMse, pMse, nuMse, contMse = self.compute_loss(low_res_true, low_res_xz)
 
-      data_loss  = (1/3)*(uMse   + vMse + pMse)# + pMse + nuMse) 
+      data_loss  = (1/4)*(uMse   + vMse + pMse + nuMse) 
 
       cont_loss = contMse
       
       beta_cont = int(data_loss/contMse)
       loss = data_loss + self.beta[0]*beta_cont*cont_loss
 
-    if self.saveGradStat:
-      uMseGrad    = tape0.gradient(uMse,    self.trainable_variables)
-      vMseGrad    = tape0.gradient(vMse,    self.trainable_variables)
-      pMseGrad    = tape0.gradient(pMse,    self.trainable_variables)
-      pdeMse0Grad = tape0.gradient(pdeMse0, self.trainable_variables)
-      pdeMse1Grad = tape0.gradient(pdeMse1, self.trainable_variables)
-      pdeMse2Grad = tape0.gradient(pdeMse2, self.trainable_variables)
     lossGrad = tape0.gradient(loss, self.trainable_variables)
     del tape0
 

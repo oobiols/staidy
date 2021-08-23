@@ -53,8 +53,9 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-X = np.load('./cylinder_lr.npy')
-X[:,:,:,3:] /= 500
+X = np.load('./channelflow_lr_turb.npy')
+channels = X.shape[3]
+#X[:,:,:,3:] /= 500
 
 #X, x, _, _ = train_test_split(X,X,test_size=0.1)
 #
@@ -64,7 +65,7 @@ X[:,:,:,3:] /= 500
 #ntrain = ntrain//args.batchsize
 #nval = nval//args.batchsize
 
-X = X[0:1000]
+X = X[0:4]
 x = X[0:4]
 
 name = "AMR_epochs_"+str(args.epochs)+\
@@ -74,7 +75,7 @@ name = "AMR_epochs_"+str(args.epochs)+\
        "_"+args.modelname
 
 nsNet =  NSAmrScorer(
-               image_size = [args.height,args.width,5],
+               image_size = [args.height,args.width,channels],
                patch_size = [args.patchheight,args.patchwidth],
                scorer_filters=[4,16,32],
                filters = [3,16,64],
