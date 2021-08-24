@@ -624,14 +624,20 @@ class DatasetNoWarmup(Dataset):
       Re = uref * Dh / visc
   
 
-    Ux /= uref
-    Uy /= uref
-    p /= uref*uref
-    nuTilda /= nutildaref
-    x /= Dh
-    z /= Dh
+   # Ux /= uref
+   # Uy /= uref
+   # p /= uref*uref
+   # nuTilda /= nutildaref
+   # x /= Dh
+   # z /= Dh
 
-    data = np.stack( (Ux,Uy,p,nuTilda,x,z), axis=-1) 
+    if (self.is_turb):
+
+       data = np.stack( (Ux,Uy,p,nuTilda,x,z), axis=-1) 
+
+    else:
+
+       data = np.stack( (Ux,Uy,p,x,z), axis=-1) 
   
     return np.float16(data)
  

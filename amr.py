@@ -65,7 +65,7 @@ channels = X.shape[3]
 #ntrain = ntrain//args.batchsize
 #nval = nval//args.batchsize
 
-X = X[0:4]
+X = X[0:64]
 x = X[0:4]
 
 name = "AMR_epochs_"+str(args.epochs)+\

@@ -7,6 +7,10 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('-n', '--name', type=str, default='name',\
                     help='batch size for model.predict')
+parser.add_argument('-nb', '--numberbins', type=int, default=4,\
+                    help='batch size for model.predict')
+parser.add_argument('-he', '', type=int, default=16,\
+                    help='batch size for model.predict')
 
 args = parser.parse_args()
 true_data = np.load('cylinder_lr.npy')[0:1]

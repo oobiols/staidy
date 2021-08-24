@@ -44,16 +44,15 @@ amr =  NSAmrScorer(
  
               )
 
-amr.build(input_shape=[(None,args.height,args.width,3),(None,args.height,args.width,2)])
+amr.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
 amr.load_weights('./weights.h5')
 
-x = np.load('cylinder_lr.npy')[0:1]
+x = np.load('channelflow_lr_turb.npy')[0:1]
 
-flowvar = x[:,:,:,0:3]
-xz = x[:,:,:,3:]/500
+flowvar = x[:,:,:,:-2]
+xz = x[:,:,:,-2:]
 
 input=[flowvar,xz]
-
 p,idx,_ = amr.predict(input,batch_size=args.batchsize,verbose=1)
 
 for i,patch in enumerate(p):
