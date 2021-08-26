@@ -93,19 +93,19 @@ class ScorerNetwork(keras.layers.Layer):
  
      return x
 
-class UpSampling2DBicubic(keras.layers.Layer):
+class UpSampling2DBilinear(keras.layers.Layer):
     def __init__(self,
 		 size=(32,128),
                  **kwargs):
 
-        super(UpSampling2DBicubic,self).__init__(**kwargs)
+        super(UpSampling2DBilinear,self).__init__(**kwargs)
 
         self._size = size
 
     def call(self,inputs):
 
          x = inputs
-         x = tf.image.resize(x, size=self._size,method='bicubic')
+         x = tf.image.resize(x, size=self._size,method='bilinear')
 
          return x
 
@@ -148,7 +148,6 @@ class NSAmrScorer(NSModelPinn):
                                 kernel_size= scorer_kernel_size,
                                 patch_size= patch_size)
 
-
     self._filters =  filters
     self._filters[0] = self._channels_out
 
@@ -170,13 +169,14 @@ class NSAmrScorer(NSModelPinn):
     for _ in range(self._n_bins):
      r = self._rows_patch * level
      c = self._columns_patch * level
-     self._upsampling.append(keras.layers.Conv2DTranspose(filters=self._channels_out+1,
-                                                kernel_size=5,
-                                                strides=level,
-                                                activation=tf.nn.leaky_relu,
-                                                padding="same"))
-
-     self._coord_upsampling.append(UpSampling2DBicubic(size=(r,c)))
+     #self._upsampling.append(keras.layers.Conv2DTranspose(filters=self._channels_out+1,
+#                                                kernel_size=5,
+#                                                strides=level,
+#                                                activation=tf.nn.leaky_relu,
+#                                                padding="same"))
+#
+     self._upsampling.append(UpSampling2DBilinear(size=(r,c)))
+     self._coord_upsampling.append(UpSampling2DBilinear(size=(r,c)))
      level=2*level
 
   def _ranking(self,scores):
@@ -240,9 +240,8 @@ class NSAmrScorer(NSModelPinn):
     cont = 0.0
     lr_predicted_patches = predicted_patches[0]
 
+    level=1
     for i, idx in enumerate(indices):
-    # i = 0
-     #idx = indices[0]
 
      true_p = tf.gather(true_patches,idx,axis=0)
      true_p = tf.reshape(true_p,
@@ -251,9 +250,8 @@ class NSAmrScorer(NSModelPinn):
                                     lr_predicted_patches.shape[2],
                                     lr_predicted_patches.shape[3]))
      pred_p = predicted_patches[i]
-     pred_p = tf.image.resize(pred_p,
-                            size =(self._rows_patch,self._columns_patch),
-                            method='bicubic')
+     pred_p = tf.keras.layers.AveragePooling2D(pool_size=(level, level), strides=(level,level), padding="same")(pred_p)
+     level = level*2
    
      if true_p.shape[0] > 0: 
 
@@ -271,6 +269,10 @@ class NSAmrScorer(NSModelPinn):
     momxMse = 0.0
     momyMse = 0.0
     cont = 0.0
+    nur= 1e-2
+    lr = 1.0
+    ur = 5.0
+    R = nur/(lr*ur)
     for i , _ in enumerate(u_grad):
 
      u = u_pred_patches[i]
@@ -305,10 +307,10 @@ class NSAmrScorer(NSModelPinn):
       #continuity   
       contMse += tf.reduce_mean(tf.square(ux+vz))
       #momx
-      momx = u * ux + v*uz + px - 2*nux*ux - nuz*(uz + vx) - (1e-3 + nu)*(uxx + uzz)
+      momx = u * ux + v*uz + px - R*(2*nux*ux + nuz*(uz + vx) + (1e-2 + nu)*(uxx + uzz))
       momxMse += tf.reduce_mean(tf.square(momx))
       #momy
-      momy = u * vx + v*vz + pz - 2*nuz*vz - nux*(uz + vx) - (1e-3 + nu)*(vxx + vzz)
+      momy = u * vx + v*vz + pz - R*(2*nuz*vz + nux*(uz + vx) + (1e-2 + nu)*(vxx + vzz))
       momyMse += tf.reduce_mean(tf.square(momy))
 
       cont = cont+1
@@ -383,32 +385,30 @@ class NSAmrScorer(NSModelPinn):
     low_res_true = inputs[:,:,:,:-2]
     low_res_xz = inputs[:,:,:,-2:]
 
-    with tf.GradientTape(persistent=True) as tape0:
-        
-      uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz)
+    uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz)
 
-      data_loss  = (1/4)*(nuMse + uMse   + vMse + pMse)
+    data_loss  = (1/4)*(nuMse + uMse   + vMse + pMse)
 
-      cont_loss = contMse
-      
-      beta_cont = int(data_loss/contMse)
+    cont_loss = contMse
+    
+    beta_cont = float(data_loss/contMse)
 
-      momx_loss = momxMse
+    momx_loss = momxMse
 
-      beta_momx = int(data_loss/momxMse)
+    beta_momx = float(data_loss/momxMse)
 
-      momy_loss = momyMse
+    momy_loss = momyMse
 
-      beta_momy = int(data_loss/momyMse)
+    beta_momy = float(data_loss/momyMse)
 
-      loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx*momx_loss + beta_momy*momy_loss)
-
+    loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx*momx_loss + beta_momy*momy_loss)
     
     self.validMetrics['loss'].update_state(loss)
     self.validMetrics['data_loss'].update_state(data_loss)
     self.validMetrics['cont_loss'].update_state(contMse)
     self.validMetrics['momx_loss'].update_state(momx_loss)
     self.validMetrics['momy_loss'].update_state(momy_loss)
+    self.validMetrics['nuMse'].update_state(nuMse)
 
     for key in self.validMetrics:
       self.validStat[key] = self.validMetrics[key].result()
@@ -429,15 +429,15 @@ class NSAmrScorer(NSModelPinn):
 
       cont_loss = contMse
       
-      beta_cont = int(data_loss/contMse)
+      beta_cont = float(data_loss/contMse)
 
       momx_loss = momxMse
 
-      beta_momx = int(data_loss/momxMse)
+      beta_momx = float(data_loss/momxMse)
 
       momy_loss = momyMse
 
-      beta_momy = int(data_loss/momyMse)
+      beta_momy = float(data_loss/momyMse)
 
       loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx*momx_loss + beta_momy*momy_loss)
 
@@ -454,6 +454,7 @@ class NSAmrScorer(NSModelPinn):
     self.trainMetrics['cont_loss'].update_state(cont_loss)
     self.trainMetrics['momx_loss'].update_state(momx_loss)
     self.trainMetrics['momy_loss'].update_state(momy_loss)
+    self.trainMetrics['nuMse'].update_state(nuMse)
     for key in self.trainMetrics:
       self.trainStat[key] = self.trainMetrics[key].result()
     return self.trainStat

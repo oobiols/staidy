@@ -316,7 +316,7 @@ class NSModelPinn(keras.Model):
     self.trainMetrics = {}
     self.validMetrics = {}
     # add metrics
-    names = ['loss','data_loss','cont_loss','momx_loss','momy_loss']
+    names = ['loss','data_loss','cont_loss','momx_loss','momy_loss','nuMse']
     for key in names:
       self.trainMetrics[key] = keras.metrics.Mean(name='train_'+key)
       self.validMetrics[key] = keras.metrics.Mean(name='valid_'+key)

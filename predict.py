@@ -33,21 +33,22 @@ args = parser.parse_args()
 model = keras.models.load_model('./models/'+args.modelname)
 model.save_weights('./weights.h5')
 
+channels = 6
+
 amr =  NSAmrScorer(
-               image_size = [args.height,args.width,5],
+               image_size = [args.height,args.width,channels],
                patch_size = [args.patchheight,args.patchwidth],
                scorer_filters=[4,16,32],
-               filters = [3,16,64],
+               filters = [4,16,64],
                scorer_kernel_size = 5,
                batch_size = args.batchsize,
-               nbins =args.numberbins
- 
-              )
+               nbins =args.numberbins,
+               )
 
 amr.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
 amr.load_weights('./weights.h5')
 
-x = np.load('channelflow_lr_turb.npy')[0:1]
+x = np.load('./datasets/channelflow_lr_turb.npy')[0:1]
 
 flowvar = x[:,:,:,:-2]
 xz = x[:,:,:,-2:]

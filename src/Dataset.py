@@ -225,7 +225,7 @@ class Dataset():
 			case):
 
   
-  coord_path   = "./" + data+"_data_"+str(self.grid)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/"
+  coord_path   = "./" + data+"_data_"+str(self.dataset_name)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/"
   xyz = np.loadtxt(coord_path+"xyz.txt")
 
   return xyz
@@ -238,13 +238,13 @@ class Dataset():
   x_addrs = []
   y_addr = []
  
-  train_x_path   = "./" + data+"_data_"+str(self.grid)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/input/*"
+  train_x_path   = "./" + data+"_data_"+str(self.dataset_name)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/input/*"
   train_x_addrs  = sorted(glob.glob(train_x_path))
   train_x_addrs  = list(train_x_addrs)
   train_x_addrs.sort(key=natural_keys)
   x_addrs.append(train_x_addrs)
  
-  train_y_path   = "./" + data+"_data_"+str(self.grid)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/output/*"
+  train_y_path   = "./" + data+"_data_"+str(self.dataset_name)+"_"+str(self.width)+"_"+str(self.height) + "/" + case + "/output/*"
   train_y_addr  = sorted(glob.glob(train_y_path))
   train_y_addr  = list(train_y_addr)
   train_y_addr.sort(key=natural_keys)
@@ -548,6 +548,10 @@ class Dataset():
 
     ret = arr.reshape( [self.height, self.width] )
 
+  elif (self.grid == "flatplate"):
+
+    ret = arr.reshape( [self.height, self.width] )
+
   return ret
 
 
@@ -598,9 +602,8 @@ class DatasetNoWarmup(Dataset):
     if (self.grid == "channelflow"):
  
       Ux_avg = Ux[int(height/2),0]
-      Uy_avg = Uy[int(height/2),0]
       uref = Ux_avg
-      nutildaref = 1e-4
+      nutildaref = 0.1
       Dh = 1
       visc = 1e-4
       Re = uref *  Dh / visc   
@@ -617,19 +620,19 @@ class DatasetNoWarmup(Dataset):
 
     elif (self.grid == "ellipse"):
   
-      uref = Ux[height,int(width/2)]
-      nutildaref = 1e-4
+      uref = Ux[height-1,int(width/2)]
+      nutildaref = 0.1
       Dh = 1
       visc = 1e-6
       Re = uref * Dh / visc
   
 
-   # Ux /= uref
-   # Uy /= uref
-   # p /= uref*uref
-   # nuTilda /= nutildaref
-   # x /= Dh
-   # z /= Dh
+    #Ux /= uref
+    #Uy /= uref
+    #p /= uref*uref
+    #nuTilda /= nutildaref
+    #x /= Dh
+    #z /= Dh
 
     if (self.is_turb):
 
