@@ -53,21 +53,21 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-Xcf = np.load('./datasets/channelflow_lr_turb.npy')
-#Xfp = np.load('./datasets/flatplate_lr_turb.npy')
+X = np.load('./datasets/channelflow_lr_turb.npy')
+Xfp = np.load('./datasets/flatplate_lr_turb.npy')
 
-#Xcf = np.append(Xcf,Xfp,axis=0)
-channels = Xcf.shape[3]
+X = np.append(X,Xfp,axis=0)
+channels = X.shape[3]
 
-#X, x, _, _ = train_test_split(Xcf,Xcf,test_size=0.1)
+X, x, _, _ = train_test_split(X,X,test_size=0.1)
 
-#ntrain = X.shape[0]
-#nval = x.shape[0]
-#ntrain = ntrain//args.batchsize
-#nval = nval//args.batchsize
+ntrain = X.shape[0]
+nval = x.shape[0]
+ntrain = ntrain//args.batchsize
+nval = nval//args.batchsize
 
-X = Xcf[0:24]
-x = Xcf[0:4]
+X = X[0:24]
+x = x[0:4]
 
 name = "AMR_epochs_"+str(args.epochs)+\
        "_lr_"+str(args.learningrate)+\
