@@ -207,11 +207,11 @@ class NSAmrScorer(NSModelPinn):
     flowvar = inputs[0]
     coordinates = inputs[1]
    
-    features , scores = self._scorer(flowvar) #scores shape [BS,NP]
+    spatial_attention , scores = self._scorer(flowvar) #scores shape [BS,NP]
 
     I     = self._ranking(scores) #indices shape [BS*NP]
 
-    features = tf.concat([flowvar,features],axis=-1)
+    features = tf.concat([flowvar,spatial_attention],axis=-1)
 
     patches     = self.from_image_to_patch_sequence(features) #patches shape [BS*NP,h,w,C]
     coordinates = self.from_image_to_patch_sequence(coordinates) #patches shape [BS*NP,h,w,C]
@@ -251,7 +251,7 @@ class NSAmrScorer(NSModelPinn):
 
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz, Re, nulaminar)
+      uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz, Re_nulaminar)
 
       data_loss  = (1/4)*(nuMse + uMse   + vMse + pMse)
 
@@ -287,10 +287,9 @@ class NSAmrScorer(NSModelPinn):
       self.trainStat[key] = self.trainMetrics[key].result()
     return self.trainStat
 
-  def compute_loss(self, low_res_true, low_res_xz,Re,nulaminar):
+  def compute_loss(self, low_res_true, low_res_xz,Re_nulaminar):
     
-    Re = self.from_image_to_patch_sequence(Re)
-    nulaminar = self.from_image_to_patch_sequence(nulaminar)
+    Re_nulaminar = self.from_image_to_patch_sequence(Re_nulaminar)
     XZ = low_res_xz
 
     with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
@@ -325,10 +324,9 @@ class NSAmrScorer(NSModelPinn):
 
     uMse, vMse, pMse , nuMse= self.compute_data_loss(true_patches, predicted_patches)
 
-    contMse, momxMse, momzMse = self.compute_pde_loss(u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2,Re,nulaminar,indices)
+    contMse, momxMse, momzMse = self.compute_pde_loss(u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2,Re_nulaminar,indices)
 
     return uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse
-
 
   def compute_data_loss(self,true_patches, predicted_patches):
 
@@ -356,7 +354,7 @@ class NSAmrScorer(NSModelPinn):
 
     return (1/cont)*uMse , (1/cont)*vMse , (1/cont)*pMse , (1/cont)*nuMse
 
-  def compute_pde_loss(self,u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2,Re,nulaminar,indices):
+  def compute_pde_loss(self,u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2,Re_nulaminar,indices):
 
     contMse = 0.0
     momxMse = 0.0
@@ -396,15 +394,11 @@ class NSAmrScorer(NSModelPinn):
 
      if ux.shape[0]>0:
 
-      re = tf.squeeze(tf.gather(Re,indices[i],axis=0),axis=1)
-      re = tf.keras.layers.UpSampling2D(size=level,interpolation='nearest')(re)
-      re = re[:,:,:,0]
+      re_nulaminar = tf.squeeze(tf.gather(Re_nulaminar,indices[i],axis=0),axis=1)
+      re_nulaminar = tf.keras.layers.UpSampling2D(size=level,interpolation='nearest')(re_nulaminar)
+      re = re_nulaminar[:,:,:,0]
+      nul = re_nulaminar[:,:,:,1]
       
-      nul = tf.squeeze(tf.gather(nulaminar,indices[i],axis=0),axis=1)
-      nul = tf.keras.layers.UpSampling2D(size=level,interpolation='nearest')(nul)
-      nul = nul[:,:,:,0]
-
-
       #continuity   
       contMse += tf.reduce_mean(tf.square(ux+vz))
       #momx
@@ -445,10 +439,9 @@ class NSAmrScorer(NSModelPinn):
  
     low_res_true = inputs[:,:,:,0:4]
     low_res_xz = inputs[:,:,:,4:6] 
-    Re = inputs[:,:,:,6:7] 
-    nulaminar = inputs[:,:,:,7:] 
+    Re_nulaminar = inputs[:,:,:,6:] 
 
-    uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz, Re, nulaminar)
+    uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz, Re_nulaminar)
 
     data_loss  = (1/4)*(nuMse + uMse   + vMse + pMse)
 
