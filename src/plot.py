@@ -14,13 +14,11 @@ def history(history,name, writing=1):
  plt.title(title)
  
 
- losses = ["loss","val_loss","data_loss","val_data_loss","cont_loss","val_cont_loss","mom_x_loss","val_mom_x_loss","mom_z_loss","val_mom_z_loss"]
  for n, values in history.history.items():
 
   n = str(n)
 
-  if n in losses:
-   plt.plot(values,label=n)
+  plt.plot(values,label=n)
 
   if(writing):
 
