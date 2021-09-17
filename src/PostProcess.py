@@ -130,10 +130,12 @@ class PostProcessAmr():
      for j , indices in enumerate(self.indices[1:]):
 
       if i in indices:
+
          idx = np.where(indices==i)
          idx = idx[0][0]
          patches = self.patches[j+1]
          patch = patches[idx,:,:,0:2]
+
          h = patch.shape[0]
          w = patch.shape[1]
          level = h//self.patchheight
@@ -141,34 +143,12 @@ class PostProcessAmr():
          uz = patch[::level,1::level,1].ravel()
          Ux = np.append(Ux,ux,axis=0)
          Uz = np.append(Uz,uz,axis=0)
-	
-    for i in range(self.npatches):
-     for j , indices in enumerate(self.indices[1:]):
-
-      if i in indices:
-         idx = np.where(indices==i)
-         idx = idx[0][0]
-         patches = self.patches[j+1]
-         patch = patches[idx,:,:,0:2]
-         h = patch.shape[0]
-         w = patch.shape[1]
-         level = h//self.patchheight
+    
          ux = patch[1::level,::level,0].ravel()
          uz = patch[1::level,::level,1].ravel()
          Ux = np.append(Ux,ux,axis=0)
          Uz = np.append(Uz,uz,axis=0)
-    
-    for i in range(self.npatches):
-     for j , indices in enumerate(self.indices[1:]):
 
-      if i in indices:
-         idx = np.where(indices==i)
-         idx = idx[0][0]
-         patches = self.patches[j+1]
-         patch = patches[idx,:,:,0:2]
-         h = patch.shape[0]
-         w = patch.shape[1]
-         level = h//self.patchheight
          ux = patch[1::level,1::level,0].ravel()
          uz = patch[1::level,1::level,1].ravel()
          Ux = np.append(Ux,ux,axis=0)
@@ -234,34 +214,13 @@ class PostProcessAmr():
          h = patch.shape[0]
          w = patch.shape[1]
          level = h//self.patchheight
+
          p = patch[::level,1::level].ravel()
          P = np.append(P,p,axis=0)
 	
-    for i in range(self.npatches):
-     for j , indices in enumerate(self.indices[1:]):
-
-      if i in indices:
-         idx = np.where(indices==i)
-         idx = idx[0][0]
-         patches = self.patches[j+1]
-         patch = patches[idx,:,:,2]
-         h = patch.shape[0]
-         w = patch.shape[1]
-         level = h//self.patchheight
-         P = patch[1::level,::level].ravel()
+         p = patch[1::level,::level].ravel()
          P = np.append(P,p,axis=0)
     
-    for i in range(self.npatches):
-     for j , indices in enumerate(self.indices[1:]):
-
-      if i in indices:
-         idx = np.where(indices==i)
-         idx = idx[0][0]
-         patches = self.patches[j+1]
-         patch = patches[idx,:,:,2]
-         h = patch.shape[0]
-         w = patch.shape[1]
-         level = h//self.patchheight
          p = patch[1::level,1::level].ravel()
          P = np.append(P,p,axis=0)
 
@@ -323,34 +282,13 @@ class PostProcessAmr():
          h = patch.shape[0]
          w = patch.shape[1]
          level = h//self.patchheight
+
          p = patch[::level,1::level].ravel()
          P = np.append(P,p,axis=0)
-	
-    for i in range(self.npatches):
-     for j , indices in enumerate(self.indices[1:]):
 
-      if i in indices:
-         idx = np.where(indices==i)
-         idx = idx[0][0]
-         patches = self.patches[j+1]
-         patch = patches[idx,:,:,3]
-         h = patch.shape[0]
-         w = patch.shape[1]
-         level = h//self.patchheight
-         P = patch[1::level,::level].ravel()
+         p = patch[1::level,::level].ravel()
          P = np.append(P,p,axis=0)
     
-    for i in range(self.npatches):
-     for j , indices in enumerate(self.indices[1:]):
-
-      if i in indices:
-         idx = np.where(indices==i)
-         idx = idx[0][0]
-         patches = self.patches[j+1]
-         patch = patches[idx,:,:,3]
-         h = patch.shape[0]
-         w = patch.shape[1]
-         level = h//self.patchheight
          p = patch[1::level,1::level].ravel()
          P = np.append(P,p,axis=0)
 

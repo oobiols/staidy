@@ -183,8 +183,8 @@ class NSAmrScorer(NSModelPinn):
     for _ in range(self._n_bins):
      r = self._rows_patch * level
      c = self._columns_patch * level
-     self._upsampling.append(UpSampling2DBilinear(size=(r,c)))
-     self._coord_upsampling.append(UpSampling2DBilinear(size=(r,c)))
+     self._upsampling.append(UpSampling2DBicubic(size=(r,c)))
+     self._coord_upsampling.append(UpSampling2DBicubic(size=(r,c)))
      level=2*level
 
   def _ranking(self,scores):

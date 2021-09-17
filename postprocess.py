@@ -54,14 +54,18 @@ amr.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.wi
 amr.load_weights('./weights.h5')
 
 x = np.load('./datasets/'+args.case+'_lr_turb_nondim.npy')[0:1]
-xx = np.load('./datasets/'+args.case+'_lr_turb.npy')[0:1]
-nuref=np.max(x[:,:,:,3])
-print(nuref)
 flowvar = x[:,:,:,0:4]
 xz = x[:,:,:,4:6]
 
 input=[flowvar,xz]
 p, _, idx,_ = amr.predict(input,batch_size=args.batchsize,verbose=1)
+
+
+for i, id in enumerate(idx):
+ 
+ print("bin ",i,":\n\t")
+ for el in id:
+  print(" ", el)
 
 
 pp_amr = PostProcessAmr(patches=p,
@@ -74,7 +78,18 @@ pp_amr = PostProcessAmr(patches=p,
 			case_name=args.case,
 			modelname=args.modelname)
 
-pp_amr.velocity_to_foam(uref=3.5)
-pp_amr.pressure_to_foam(uref=3.5)
+pp_amr.field_to_png(variablename="xvelocity")
+
+xx = np.load('./datasets/'+args.case+'_lr_turb.npy')[0:1]
+if args.case == "channelflow" or args.case=="flatplate": 
+ uref  = xx[0,args.height//2,0,0]
+elif args.case == "airfoil":
+ uref  = xx[0,args.height-1,args.width//2,0]
+ 
+nuref=np.max(xx[:,:,:,3])
+print(nuref)
+print(uref)
+pp_amr.velocity_to_foam(uref=uref)
+pp_amr.pressure_to_foam(uref=uref)
 pp_amr.nutilda_to_foam(nuref=nuref)
 
