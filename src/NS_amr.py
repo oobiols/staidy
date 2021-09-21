@@ -167,13 +167,13 @@ class NSAmrScorer(NSModelPinn):
 
     for filter in self._filters:
         self._encoder.append(keras.layers.Conv2D(filters=filter,
-                                                                kernel_size=5,
+                                                                kernel_size=2,
                                                                 strides=1,
                                                                 activation=tf.nn.leaky_relu,
                                                                 padding="same"))
     for filter in reversed(self._filters):
         self._decoder.append(keras.layers.Conv2DTranspose(filters=filter,
-                                                                kernel_size=5,
+                                                                kernel_size=2,
                                                                 strides=1,
                                                                 activation=tf.nn.leaky_relu,
                                                                 padding="same"))

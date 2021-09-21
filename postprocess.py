@@ -35,8 +35,8 @@ parser.add_argument('-vn', '--variablename', type=str, default="xvelocity",\
 
 args = parser.parse_args()
 
-model = keras.models.load_model('./models/'+args.modelname)
-model.save_weights('./weights.h5')
+#model = keras.models.load_model('./models/'+args.modelname)
+#model.save_weights('./weights.h5')
 
 channels = 6
 
@@ -51,7 +51,7 @@ amr =  NSAmrScorer(
                )
 
 amr.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
-amr.load_weights('./weights.h5')
+amr.load_weights('./checkpoint/'+args.modelname+'/model')
 
 x = np.load('./datasets/'+args.case+'_lr_turb_nondim.npy')[0:1]
 flowvar = x[:,:,:,0:4]
@@ -87,8 +87,6 @@ elif args.case == "airfoil":
  uref  = xx[0,args.height-1,args.width//2,0]
  
 nuref=np.max(xx[:,:,:,3])
-print(nuref)
-print(uref)
 pp_amr.velocity_to_foam(uref=uref)
 pp_amr.pressure_to_foam(uref=uref)
 pp_amr.nutilda_to_foam(nuref=nuref)

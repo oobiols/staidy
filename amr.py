@@ -11,6 +11,7 @@ from NS_amr import *
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -76,7 +77,14 @@ name = "AMR_epochs_"+str(args.epochs)+\
        "_reg_"+str(args.lambdacont)+\
        "_nb_"+str(args.numberbins)+\
        "_opt_"+str(args.optimizer)+\
+       "_ph_"+str(args.patchheight)+\
        "_"+args.modelname
+
+path = './checkpoint/'+name+'/'
+if not os.path.exists(path):
+    os.makedirs(path)
+
+filepath=path+'model'
 
 if (args.optimizer == "adam"):
   opt = keras.optimizers.Adam(learning_rate=args.learningrate)
@@ -99,7 +107,15 @@ nsNet =  NSAmrScorer(
 nsNet.compile(optimizer=opt,
 	      run_eagerly=True)
 
-nsCB = []
+nsCB = [ModelCheckpoint(filepath=filepath,
+			monitor='val_loss',
+			verbose=0,
+			save_best_only=True,
+			save_weights_only=False,
+			mode='auto',
+			save_freq='epoch')
+			]
+
 history = nsNet.fit(x=X,
                     y=X,
                     batch_size=args.batchsize, 

@@ -103,7 +103,7 @@ class PostProcessAmr():
     f = open(directory_name+'/'+file_name,'w')
     f.write('FoamFile\n{\n\tversion\t2.0;\n\tformat\tascii;\n\tclass\tvolVectorField;\n\tobject\tU;\n\tlocation\t"1";\n}\n\n') 
     f.write('dimensions\t[0 1 -1 0 0 0 0];\n\n')
-    f.write('internalField\tnonuniform List<vector>\n\n')
+    f.write('internalField\tnonuniform List<vector>\n')
     f.write(str(self.total_n_cells)+'\n(\n')
 
     Ux = np.empty([0])
@@ -184,7 +184,7 @@ class PostProcessAmr():
     f = open(directory_name+'/'+file_name,'w')
     f.write('FoamFile\n{\n\tversion\t2.0;\n\tformat\tascii;\n\tclass\tvolScalarField;\n\tobject\tp;\n\tlocation\t"1";\n}\n\n') 
     f.write('dimensions\t[0 2 -2 0 0 0 0];\n\n')
-    f.write('internalField\tnonuniform List<scalar>\n\n')
+    f.write('internalField\tnonuniform List<scalar>\n')
     f.write(str(self.total_n_cells)+'\n(\n')
 
     P = np.empty([0])
@@ -252,7 +252,7 @@ class PostProcessAmr():
     f = open(directory_name+'/'+file_name,'w')
     f.write('FoamFile\n{\n\tversion\t2.0;\n\tformat\tascii;\n\tclass\tvolScalarField;\n\tobject\tnuTilda;\n\tlocation\t"1";\n}\n\n') 
     f.write('dimensions\t[0 2 -1 0 0 0 0];\n\n')
-    f.write('internalField\tnonuniform List<scalar>\n\n')
+    f.write('internalField\tnonuniform List<scalar>\n')
     f.write(str(self.total_n_cells)+'\n(\n')
 
     P = np.empty([0])
@@ -298,7 +298,6 @@ class PostProcessAmr():
         f.write(str(p)+'\n' )
     
     f.write(');\n\n')    
-
     f.write('boundaryField\n{\n')
 
     if self.case_name == "channelflow":
