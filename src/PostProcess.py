@@ -139,20 +139,119 @@ class PostProcessAmr():
          h = patch.shape[0]
          w = patch.shape[1]
          level = h//self.patchheight
-         ux = patch[::level,1::level,0].ravel()
-         uz = patch[::level,1::level,1].ravel()
-         Ux = np.append(Ux,ux,axis=0)
-         Uz = np.append(Uz,uz,axis=0)
-    
-         ux = patch[1::level,::level,0].ravel()
-         uz = patch[1::level,::level,1].ravel()
-         Ux = np.append(Ux,ux,axis=0)
-         Uz = np.append(Uz,uz,axis=0)
 
-         ux = patch[1::level,1::level,0].ravel()
-         uz = patch[1::level,1::level,1].ravel()
-         Ux = np.append(Ux,ux,axis=0)
-         Uz = np.append(Uz,uz,axis=0)
+         if level == 2:
+
+          ux = patch[::level,1::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+	
+          ux = patch[1::level,::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+     
+          ux = patch[1::level,1::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          uz = patch[::level,1::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+	
+          uz = patch[1::level,::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+     
+          uz = patch[1::level,1::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+         elif level == 4:
+
+          ux = patch[::level,2::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+	
+          ux = patch[2::level,::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+     
+          ux = patch[2::level,2::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[::level,1::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[::level,3::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[2::level,1::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[2::level,3::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[1::level,::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[1::level,2::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[3::level,::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[3::level,2::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[1::level,1::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[1::level,3::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[3::level,1::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+
+          ux = patch[3::level,3::level,0].ravel()
+          Ux = np.append(Ux,ux,axis=0)
+###########################
+
+          uz = patch[::level,2::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+	
+          uz = patch[2::level,::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+     
+          uz = patch[2::level,2::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[::level,1::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[::level,3::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[2::level,1::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[2::level,3::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[1::level,::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[1::level,2::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[3::level,::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[3::level,2::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[1::level,1::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[1::level,3::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[3::level,1::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
+
+          uz = patch[3::level,3::level,1].ravel()
+          Uz = np.append(Uz,uz,axis=0)
 
     for i in range(Ux.shape[0]):
         ux = Ux[i]*uref
@@ -170,6 +269,14 @@ class PostProcessAmr():
      f.write('\tinlet{\n\t\ttype\tfixedValue;\n\t\tvalue\tuniform ('+str(uref)+' 0 0);\n\t}\n\n') 
      f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
      f.write('\ttop{\n\t\ttype\tnoSlip;\n\t}\n\n') 
+     f.write('\tbottom{\n\t\ttype\tnoSlip;\n\t}\n\n') 
+     f.write('\tfrontAndBack{\n\t\ttype\tempty;\n\t}\n\n}') 
+
+    if self.case_name == "flatplate":
+
+     f.write('\tinlet{\n\t\ttype\tfixedValue;\n\t\tvalue\tuniform ('+str(uref)+' 0 0);\n\t}\n\n') 
+     f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
+     f.write('\ttop{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tnoSlip;\n\t}\n\n') 
      f.write('\tfrontAndBack{\n\t\ttype\tempty;\n\t}\n\n}') 
 
@@ -207,6 +314,7 @@ class PostProcessAmr():
      for j , indices in enumerate(self.indices[1:]):
 
       if i in indices:
+
          idx = np.where(indices==i)
          idx = idx[0][0]
          patches = self.patches[j+1]
@@ -214,15 +322,64 @@ class PostProcessAmr():
          h = patch.shape[0]
          w = patch.shape[1]
          level = h//self.patchheight
+         
+         if level == 2:
 
-         p = patch[::level,1::level].ravel()
-         P = np.append(P,p,axis=0)
+          p = patch[::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
 	
-         p = patch[1::level,::level].ravel()
-         P = np.append(P,p,axis=0)
-    
-         p = patch[1::level,1::level].ravel()
-         P = np.append(P,p,axis=0)
+          p = patch[1::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+     
+          p = patch[1::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+         elif level == 4:
+
+          p = patch[::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+	
+          p = patch[2::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+     
+          p = patch[2::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[2::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[2::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
 
     for i in range(P.shape[0]):
         p = P[i]*uref*uref
@@ -238,6 +395,14 @@ class PostProcessAmr():
      f.write('\tinlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
      f.write('\toutlet{\n\t\ttype\tfixedValue;\n\t\tvalue\tuniform 0;\n\t}\n\n') 
      f.write('\ttop{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
+     f.write('\tbottom{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
+     f.write('\tfrontAndBack{\n\t\ttype\tempty;\n\t}\n\n}') 
+
+    elif self.case_name == "flatplate":
+
+     f.write('\tinlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
+     f.write('\toutlet{\n\t\ttype\tfixedValue;\n\t\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\ttop{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
      f.write('\tfrontAndBack{\n\t\ttype\tempty;\n\t}\n\n}') 
 
@@ -283,14 +448,64 @@ class PostProcessAmr():
          w = patch.shape[1]
          level = h//self.patchheight
 
-         p = patch[::level,1::level].ravel()
-         P = np.append(P,p,axis=0)
+         if level == 2:
 
-         p = patch[1::level,::level].ravel()
-         P = np.append(P,p,axis=0)
-    
-         p = patch[1::level,1::level].ravel()
-         P = np.append(P,p,axis=0)
+          p = patch[::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+	
+          p = patch[1::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+     
+          p = patch[1::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+         elif level == 4:
+
+          p = patch[::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+	
+          p = patch[2::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+     
+          p = patch[2::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[2::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[2::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
 
     for i in range(P.shape[0]):
         p = P[i]*nuref
@@ -308,3 +523,10 @@ class PostProcessAmr():
      f.write('\tbottom{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 0;\n\t}\n\n') 
      f.write('\tfrontAndBack{\n\t\ttype\tempty;\n\t}\n\n}') 
 
+    if self.case_name == "flatplate":
+
+     f.write('\tinlet{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 3e-4;\n\t}\n\n') 
+     f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
+     f.write('\ttop{\n\t\ttype\tsymmetryPlane;}\n\n') 
+     f.write('\tbottom{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\tfrontAndBack{\n\t\ttype\tempty;\n\t}\n\n}') 
