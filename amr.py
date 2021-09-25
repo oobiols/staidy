@@ -11,7 +11,8 @@ from NS_amr import *
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
+from tensorflow.keras.models import load_model
 
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -45,6 +46,8 @@ parser.add_argument('-mn', '--modelname', type=str, default="amr", \
                     help='number of projection dimentions for the patch encoder')
 parser.add_argument('-opt', '--optimizer', type=str, default="adam", \
                     help='name of the optimizer: sgd, adam, rmsprop')
+parser.add_argument('-rs', '--restart', type=int, default=0, \
+                    help='number of projection dimentions for the patch encoder')
 
 
 args = parser.parse_args()
@@ -93,7 +96,12 @@ elif (args.optimizer == "sgd"):
 elif (args.optimizer == "rmsprop"):
   opt = keras.optimizers.RMSprop(learning_rate=args.learningrate)
 
-nsNet =  NSAmrScorer(
+if args.restart == True:
+  nsNet = load_model(path)
+  initial_epoch = 65
+
+else:
+ nsNet =  NSAmrScorer(
           image_size = [args.height,args.width,channels],
           patch_size = [args.patchheight,args.patchwidth],
           scorer_filters=[4,16,32],
@@ -104,8 +112,13 @@ nsNet =  NSAmrScorer(
           beta =[args.lambdacont,1.0,1.0]
           )
 
-nsNet.compile(optimizer=opt,
+ nsNet.compile(optimizer=opt,
 	      run_eagerly=True)
+
+ initial_epoch = 0
+
+ nsNet.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
+ nsNet.summary()
 
 nsCB = [ModelCheckpoint(filepath=filepath,
 			monitor='val_loss',
@@ -113,19 +126,22 @@ nsCB = [ModelCheckpoint(filepath=filepath,
 			save_best_only=True,
 			save_weights_only=False,
 			mode='auto',
-			save_freq='epoch')
-			]
+			save_freq='epoch'),
+	CSVLogger(path+'history.csv')]
+			
+
+ 
 
 history = nsNet.fit(x=X,
                     y=X,
                     batch_size=args.batchsize, 
                     validation_data=(x,x),
-                    initial_epoch=0, 
+                    initial_epoch=initial_epoch, 
                     epochs=args.epochs,\
                     verbose=1, 
                	    callbacks=nsCB,
               	    shuffle=True)
 
-#nsNet.summary()
+
 plot.history(history,name=name)
 nsNet.save('./models/'+name)

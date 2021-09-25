@@ -256,7 +256,8 @@ class PostProcessAmr():
     for i in range(Ux.shape[0]):
         ux = Ux[i]*uref
         uy = 0
-        uz = Uz[i]*uref
+        uz = 0
+#        uz = Uz[i]*uref
 
         f.write('('+str(ux)+' 0 '+str(uz)+')\n' )
     

@@ -79,6 +79,8 @@ pp_amr = PostProcessAmr(patches=p,
 			modelname=args.modelname)
 
 pp_amr.field_to_png(variablename="xvelocity")
+pp_amr.field_to_png(variablename='pressure')
+pp_amr.field_to_png(variablename='nutilda')
 
 xx = np.load('./datasets/'+args.case+'_lr_turb.npy')[0:1]
 if args.case == "channelflow" or args.case=="flatplate": 
@@ -87,6 +89,7 @@ elif args.case == "airfoil":
  uref  = xx[0,args.height-1,args.width//2,0]
  
 nuref=np.max(xx[:,:,:,3])
+print(uref)
 pp_amr.velocity_to_foam(uref=uref)
 pp_amr.pressure_to_foam(uref=uref)
 pp_amr.nutilda_to_foam(nuref=nuref)
