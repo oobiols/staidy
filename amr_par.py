@@ -56,9 +56,9 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-X = np.load('./datasets/channelflow_lr_turb_nondim.npy')[:10]
-Xfp = np.load('./datasets/flatplate_lr_turb_nondim.npy')[:10]
-Xe = np.load('./datasets/ellipse_lr_turb_nondim.npy')[:10]
+X = np.load('./datasets/channelflow_lr_turb_nondim.npy')[:1000]
+Xfp = np.load('./datasets/flatplate_lr_turb_nondim.npy')[:1000]
+Xe = np.load('./datasets/ellipse_lr_turb_nondim.npy')[:1000]
 #Xa = np.load('./datasets/airfoil_lr_turb_nondim.npy')[0:2000]
 
 X = np.append(X,Xfp,axis=0)
@@ -97,30 +97,22 @@ elif (args.optimizer == "sgd"):
 elif (args.optimizer == "rmsprop"):
   opt = keras.optimizers.RMSprop(learning_rate=args.learningrate)
 
+with mirrored_strategy.scope():
 
-nsNet =  NSAmrScorer(
+ nsNet =  NSAmrScorer(
           image_size = [args.height,args.width,channels],
           patch_size = [args.patchheight,args.patchwidth],
           scorer_filters=[4,8,16],
-          filters = [4,16,32],
+          filters = [4,8,16],
           scorer_kernel_size = 3,
-          batch_size = args.batchsize,
+          batch_size = args.batchsize//mirrored_strategy.num_replicas_in_sync,
           nbins =args.numberbins,
           beta =[args.lambdacont,1.0,1.0]
           )
 
-nsNet.compile(optimizer=opt,
+ nsNet.compile(optimizer=opt,
 	      run_eagerly=True)
-
-
-nsNet.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
-initial_epoch=0
-nsNet.summary()
-if args.restart == True:
-  nsNet.load_weights(filepath)
-  initial_epoch = 68
-
-nsCB = [ModelCheckpoint(filepath=filepath,
+ nsCB = [ModelCheckpoint(filepath=filepath,
 			monitor='val_loss',
 			verbose=0,
 			save_best_only=True,
@@ -128,17 +120,26 @@ nsCB = [ModelCheckpoint(filepath=filepath,
 			mode='auto',
 			save_freq='epoch'),
 	CSVLogger(path+'/history.csv')]
-			
 
-history = nsNet.fit(x=X,
+ history = nsNet.fit(x=X,
                     y=X,
                     batch_size=args.batchsize, 
                     validation_data=(x,x),
-                    initial_epoch=initial_epoch, 
                     epochs=args.epochs,\
                     verbose=1, 
                	    callbacks=nsCB,
               	    shuffle=True)
+
+#nsNet.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
+#initial_epoch=0
+#nsNet.summary()
+
+#if args.restart == True:
+#  nsNet.load_weights(filepath)
+#  initial_epoch = 68
+
+			
+
 
 
 plot.history(history,name=name)

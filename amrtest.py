@@ -7,12 +7,16 @@ import plot
 import numpy as np
 import tensorflow as tf
 
-from NS_amr import *
+from NS_amr_test import *
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.keras.models import load_model
+from tensorflow.keras import mixed_precision
+
+policy = mixed_precision.Policy('mixed_float16')
+mixed_precision.set_global_policy(policy)
 
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -56,13 +60,12 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
 
-X = np.load('./datasets/channelflow_lr_turb_nondim.npy')[:10]
-Xfp = np.load('./datasets/flatplate_lr_turb_nondim.npy')[:10]
-Xe = np.load('./datasets/ellipse_lr_turb_nondim.npy')[:10]
-#Xa = np.load('./datasets/airfoil_lr_turb_nondim.npy')[0:2000]
+X = np.load('./datasets/channelflow_lr_turb_nondim.npy')[:20]
+Xfp = np.load('./datasets/flatplate_lr_turb_nondim.npy')[:20]
+#Xe = np.load('./datasets/ellipse_lr_turb_nondim.npy')[:10]
 
 X = np.append(X,Xfp,axis=0)
-X = np.append(X,Xe,axis=0)
+#X = np.append(X,Xe,axis=0)
 channels = X.shape[3]
 print(X.shape)
 X, x, _, _ = train_test_split(X,X,test_size=0.1,shuffle=True)
@@ -92,45 +95,52 @@ filepath=path+'/model'
 
 if (args.optimizer == "adam"):
   opt = keras.optimizers.Adam(learning_rate=args.learningrate)
+  opt = mixed_precision.LossScaleOptimizer(opt)
 elif (args.optimizer == "sgd"):
   opt = keras.optimizers.SGD(learning_rate=args.learningrate,momentum=0.99)
 elif (args.optimizer == "rmsprop"):
   opt = keras.optimizers.RMSprop(learning_rate=args.learningrate)
 
 
-nsNet =  NSAmrScorer(
+with mirrored_strategy.scope():
+
+
+ nsNet =  NSAmrScorer(
           image_size = [args.height,args.width,channels],
           patch_size = [args.patchheight,args.patchwidth],
           scorer_filters=[4,8,16],
-          filters = [4,16,32],
+          filters = [4,16,64],
           scorer_kernel_size = 3,
-          batch_size = args.batchsize,
+          batch_size = args.batchsize//mirrored_strategy.num_replicas_in_sync,
           nbins =args.numberbins,
           beta =[args.lambdacont,1.0,1.0]
           )
 
-nsNet.compile(optimizer=opt,
-	      run_eagerly=True)
+ nsNet.compile(optimizer=opt,
+	      run_eagerly=False)
 
 
-nsNet.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
-initial_epoch=0
-nsNet.summary()
-if args.restart == True:
-  nsNet.load_weights(filepath)
-  initial_epoch = 68
-
-nsCB = [ModelCheckpoint(filepath=filepath,
+# nsNet.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
+# initial_epoch=0
+# nsNet.summary()
+# if args.restart == True:
+#  nsNet.load_weights(filepath)
+#  initial_epoch = 68
+#
+ nsCB = [ModelCheckpoint(filepath=filepath,
 			monitor='val_loss',
 			verbose=0,
 			save_best_only=True,
 			save_weights_only=False,
 			mode='auto',
 			save_freq='epoch'),
-	CSVLogger(path+'/history.csv')]
-			
+	CSVLogger(path+'/history.csv')] 
+ initial_epoch =0			
+# nsCB = []
+ #X = tf.cast(X,tf.float32)
+ #x = tf.cast(x,tf.float32)
 
-history = nsNet.fit(x=X,
+ history = nsNet.fit(x=X,
                     y=X,
                     batch_size=args.batchsize, 
                     validation_data=(x,x),
