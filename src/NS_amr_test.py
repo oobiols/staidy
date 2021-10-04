@@ -187,11 +187,11 @@ class NSAmrScorer(NSModelPinn):
      self._coord_upsampling.append(UpSampling2DBicubic(size=(r,c)))
      level=2*level
 
-    self._bins = np.linspace(0,1.01,self._n_bins+1).tolist()
+    self._bins = np.linspace(0.0,1.01,self._n_bins+1).tolist()
 
   def _ranking(self,scores):
 
-        scores = tf.cast(tf.reshape(scores,shape=(self._batch_size*self._n_patches,1)),tf.float32)
+        scores = tf.reshape(scores,shape=(self._batch_size*self._n_patches,1))
         bin_per_patch = math_ops._bucketize(scores, boundaries=self._bins)
         indices = []
 
@@ -250,34 +250,22 @@ class NSAmrScorer(NSModelPinn):
     low_res_xz = inputs[:,:,:,4:6] 
     Re_nulaminar = inputs[:,:,:,6:] 
 
+
+    
+
     with tf.GradientTape(persistent=True) as tape0:
         
-      uMse, vMse, pMse, nuMse, contMse, momxMse, momyMse = self.compute_loss(low_res_true, low_res_xz, Re_nulaminar)
+      uMse, vMse, pMse, nuMse, cont_loss, momx_loss, momy_loss = self.compute_loss(low_res_true, low_res_xz, Re_nulaminar)
 
       data_loss  = (1/4)*(nuMse + uMse   + vMse + pMse)
 
-      cont_loss = contMse
-      
-      #beta_cont = float(data_loss/contMse)
+      beta_cont = float(data_loss/cont_loss)
+      beta_momx = float(data_loss/momx_loss)
+      beta_momy = float(data_loss/momy_loss)
 
-      momx_loss = momxMse
+      loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx * momx_loss + beta_momy * momy_loss)
 
-      #beta_momx = float(data_loss/momxMse)
-
-      momy_loss = momyMse
-
-     # beta_momy = float(data_loss/momyMse)
-      beta_cont = 1.0
-      beta_momx = 1.0
-      beta_momy = 1.0
-    
-      loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx*momx_loss + beta_momy*momy_loss)
-      scaled_loss = self.optimizer.get_scaled_loss(loss)
-
-    scaled_gradients = tape0.gradient(scaled_loss,self.trainable_variables)
-    lossGrad = self.optimizer.get_unscaled_gradients(scaled_gradients)
-
-    #lossGrad = tape0.gradient(loss, self.trainable_variables)
+    lossGrad = tape0.gradient(loss, self.trainable_variables)
     del tape0
 
     # ---- update parameters ---- #
@@ -313,11 +301,11 @@ class NSAmrScorer(NSModelPinn):
         p_pred_patches = []
         nu_pred_patches = []
         for p in predicted_patches:
-            u_pred_patches.append(p[:,:,:,0])
-            v_pred_patches.append(p[:,:,:,1])
-            p_pred_patches.append(p[:,:,:,2])
-            nu_pred_patches.append(p[:,:,:,3])
-            
+          u_pred_patches.append(p[:,:,:,0])
+          v_pred_patches.append(p[:,:,:,1])
+          p_pred_patches.append(p[:,:,:,2])
+          nu_pred_patches.append(p[:,:,:,3])
+         
 
       u_grad = tape1.gradient(u_pred_patches,XZ)
       v_grad = tape1.gradient(v_pred_patches,XZ)
@@ -333,6 +321,7 @@ class NSAmrScorer(NSModelPinn):
     uMse, vMse, pMse , nuMse= self.compute_data_loss(true_patches, predicted_patches)
 
     contMse, momxMse, momzMse = self.compute_pde_loss(u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2,Re_nulaminar,indices)
+
 
     return uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse
 
@@ -352,13 +341,13 @@ class NSAmrScorer(NSModelPinn):
      pred_p = tf.keras.layers.AveragePooling2D(pool_size=(level, level), strides=(level,level), padding="same")(pred_p)
      level = level*2
   
-     #if true_p.shape[0] > 0: 
+     if true_p.shape[0] > 0: 
 
-     cont += 1
-     uMse += tf.reduce_mean(tf.square(true_p[:,:,:,0] - pred_p[:,:,:,0]))
-     vMse += tf.reduce_mean(tf.square(true_p[:,:,:,1] - pred_p[:,:,:,1]))
-     pMse += tf.reduce_mean(tf.square(true_p[:,:,:,2] - pred_p[:,:,:,2]))
-     nuMse += tf.reduce_mean(tf.square(true_p[:,:,:,3] - pred_p[:,:,:,3]))
+      cont += 1
+      uMse += tf.reduce_mean(tf.square(true_p[:,:,:,0] - pred_p[:,:,:,0]))
+      vMse += tf.reduce_mean(tf.square(true_p[:,:,:,1] - pred_p[:,:,:,1]))
+      pMse += tf.reduce_mean(tf.square(true_p[:,:,:,2] - pred_p[:,:,:,2]))
+      nuMse += tf.reduce_mean(tf.square(true_p[:,:,:,3] - pred_p[:,:,:,3]))
 
     return (1/cont)*uMse , (1/cont)*vMse , (1/cont)*pMse , (1/cont)*nuMse
 
@@ -374,7 +363,7 @@ class NSAmrScorer(NSModelPinn):
 
      u = u_pred_patches[i]
      v = v_pred_patches[i]
-     nu  = nu_pred_patches[i]
+     nu = nu_pred_patches[i]
 
      grad = u_grad[i]
      ux = grad[:,:,:,0]
@@ -396,27 +385,27 @@ class NSAmrScorer(NSModelPinn):
      uxx = grad[:,:,:,0]
      uzz = grad[:,:,:,1]
 
-     grad = v_grad_2[i]
+     grad =v_grad_2[i]
      vxx = grad[:,:,:,0]
      vzz = grad[:,:,:,1]
 
-     #if ux.shape[0]>0:
+     if ux.shape[0]>0:
 
-     re_nulaminar = tf.squeeze(tf.gather(Re_nulaminar,indices[i],axis=0),axis=1)
-     re_nulaminar = tf.keras.layers.UpSampling2D(size=level,interpolation='nearest')(re_nulaminar)
-     re = re_nulaminar[:,:,:,0]
-     nul = re_nulaminar[:,:,:,1]
+      re_nulaminar = tf.squeeze(tf.gather(Re_nulaminar,indices[i],axis=0),axis=1)
+      re_nulaminar = tf.keras.layers.UpSampling2D(size=level,interpolation='nearest')(re_nulaminar)
+      re = re_nulaminar[:,:,:,0]
+      nul = re_nulaminar[:,:,:,1]
       
       #continuity   
-     contMse += tf.reduce_mean(tf.square(ux+vz))
+      contMse += tf.reduce_mean(tf.square(ux+vz))
       #momx
-     momx = u * ux + v*uz + px - re*(2*nux*ux + nuz*(uz + vx) + (nul + nu)*(uxx + uzz))
-     momxMse += tf.reduce_mean(tf.square(momx))
+      momx = u * ux + v*uz + px - re*(2*nux*ux + nuz*(uz + vx) + (nul + nu)*(uxx + uzz))
+      momxMse += tf.reduce_mean(tf.square(momx))
       #momy
-     momy = u * vx + v*vz + pz - re*(2*nuz*vz + nux*(uz + vx) + (nul + nu)*(vxx + vzz))
-     momyMse += tf.reduce_mean(tf.square(momy))
+      momy = u * vx + v*vz + pz - re*(2*nuz*vz + nux*(uz + vx) + (nul + nu)*(vxx + vzz))
+      momyMse += tf.reduce_mean(tf.square(momy))
 
-     cont = cont+1
+      cont = cont+1
 
      level=level*2
 
@@ -466,9 +455,9 @@ class NSAmrScorer(NSModelPinn):
 
 #    beta_momy = float(data_loss/momyMse)
 
-    beta_cont = 1.0
-    beta_momx = 1.0
-    beta_momy = 1.0
+    beta_cont = float(data_loss/cont_loss)
+    beta_momx = float(data_loss/momx_loss)
+    beta_momy = float(data_loss/momy_loss)
     loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx*momx_loss + beta_momy*momy_loss)
     
     self.validMetrics['loss'].update_state(loss)

@@ -40,6 +40,46 @@ class PostProcessAmr():
       w = patch.shape[2]
       self.total_n_cells+= h*w*n_patch
 
+  def levels_to_png(self):
+
+
+    fig, axs = plt.subplots(self.npx, self.npy , gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(6,2))
+    fig.suptitle("NN_levels", fontsize=10)
+
+    for x in range(self.npx):
+      z = x * self.npy
+      for y in range(self.npy):
+     
+       i = y + z
+
+       for j , indices in enumerate(self.indices):
+
+        if i in indices:
+         idx = np.where(indices==i)
+         idx = idx[0][0]
+         patches = self.patches[j]
+         J=j
+         patch = patches[idx,:,:,:]
+
+       data = patch[:,:,0]
+       J = np.abs(J-3)
+       data.fill(J)
+       axs[x,y].set_xticks([])
+       axs[x,y].set_yticks([])    
+       axs[x,y].patch.set_edgecolor('black')  
+       axs[x,y].patch.set_linewidth('1')
+       hm = sn.heatmap(data, vmin = 0, vmax=3, ax=axs[x,y],cbar=False, xticklabels=False,yticklabels=False)
+ 
+
+    directory_name = './amr_levels/'+self.modelname
+    file_name = 'levels'
+
+    if not os.path.exists(directory_name):
+      os.makedirs(directory_name)
+
+    plt.savefig(directory_name+'/'+file_name,dpi=600)
+    plt.close()
+
   def field_to_png(self,variablename="xvelocity"):
 
     if (variablename == "xvelocity"):

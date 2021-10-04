@@ -51,7 +51,7 @@ amr =  NSAmrScorer(
                )
 
 amr.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
-amr.load_weights('./checkpoint/'+args.modelname+'/model')
+amr.load_weights('./checkpoint/saved_models_30Sept/'+args.modelname+'/model')
 
 x = np.load('./datasets/'+args.case+'_lr_turb_nondim.npy')[0:1]
 flowvar = x[:,:,:,0:4]
@@ -78,19 +78,18 @@ pp_amr = PostProcessAmr(patches=p,
 			case_name=args.case,
 			modelname=args.modelname)
 
-pp_amr.field_to_png(variablename="xvelocity")
-pp_amr.field_to_png(variablename='pressure')
-pp_amr.field_to_png(variablename='nutilda')
+pp_amr.levels_to_png()
 
-xx = np.load('./datasets/'+args.case+'_lr_turb.npy')[0:1]
-if args.case == "channelflow" or args.case=="flatplate": 
- uref  = xx[0,args.height//2,0,0]
-elif args.case == "airfoil":
- uref  = xx[0,args.height-1,args.width//2,0]
- 
-nuref=np.max(xx[:,:,:,3])
-print(uref)
-pp_amr.velocity_to_foam(uref=uref)
-pp_amr.pressure_to_foam(uref=uref)
-pp_amr.nutilda_to_foam(nuref=nuref)
 
+#xx = np.load('./datasets/'+args.case+'_lr_turb.npy')[0:1]
+#if args.case == "channelflow" or args.case=="flatplate": 
+# uref  = xx[0,args.height//2,0,0]
+#elif args.case == "airfoil":
+# uref  = xx[0,args.height-1,args.width//2,0]
+# 
+#nuref=np.max(xx[:,:,:,3])
+#print(uref)
+#pp_amr.velocity_to_foam(uref=uref)
+#pp_amr.pressure_to_foam(uref=uref)
+#pp_amr.nutilda_to_foam(nuref=nuref)
+#
