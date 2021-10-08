@@ -974,3 +974,248 @@ class PostProcessAmr():
      f.write('\tbottom{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 0;\n\t}\n\n') 
      f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
      f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
+
+  def levels_to_foam(self):
+
+    directory_name = './amr_to_foam/'+self.modelname
+    file_name = "cellLevels"
+
+    if not os.path.exists(directory_name):
+      os.makedirs(directory_name)
+
+    f = open(directory_name+'/'+file_name,'w')
+    f.write('FoamFile\n{\n\tversion\t2.0;\n\tformat\tascii;\n\tclass\tvolScalarField;\n\tobject\tcellLevels;\n\tlocation\t"1";\n}\n\n') 
+    f.write('dimensions\t[0 0 0 0 0 0 0];\n\n')
+    f.write('internalField\tnonuniform List<scalar>\n')
+    f.write(str(self.total_n_cells)+'\n(\n')
+
+    P = np.empty([0])
+
+    for i in range(self.npatches):
+     for j , indices in enumerate(self.indices):
+
+      if i in indices:
+         idx = np.where(indices==i)
+         idx = idx[0][0]
+         patches = self.patches[j]
+         patch = patches[idx,:,:,3]
+         patch.fill(j)
+         h = patch.shape[0]
+         w = patch.shape[1]
+         level = h//self.patchheight
+         p = patch[::level,::level].ravel()
+         P = np.append(P,p,axis=0)
+
+    for i in range(self.npatches):
+     for j , indices in enumerate(self.indices[1:]):
+
+      if i in indices:
+         idx = np.where(indices==i)
+         idx = idx[0][0]
+         patches = self.patches[j+1]
+         patch = patches[idx,:,:,3]
+         h = patch.shape[0]
+         w = patch.shape[1]
+         patch.fill(j+1)
+         level = h//self.patchheight
+
+         if level == 2:
+
+          p = patch[::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+	
+          p = patch[1::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+     
+          p = patch[1::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+         elif level == 4:
+
+          p = patch[::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+	
+          p = patch[2::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+     
+          p = patch[2::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[2::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[2::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,2::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[1::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,1::level].ravel()
+          P = np.append(P,p,axis=0)
+
+          p = patch[3::level,3::level].ravel()
+          P = np.append(P,p,axis=0)
+
+         elif level == 8:
+  
+           for i in range(16):
+           
+               if i == 0:
+           
+                   id0x = 0
+                   id0y = 0
+           
+               if i == 1:
+           
+                   id0x = level//4
+                   id0y = 0
+           
+               if i == 2:
+           
+                   id0x = 0
+                   id0y = level//4
+           
+               if i == 3:
+           
+                   id0x = level//4
+                   id0y = level//4
+           
+           
+               if i == 4:
+                    id0x = 1
+                    id0y = 0
+           
+           
+               if i == 5:
+           
+                    id0x = 3
+                    id0y = 0
+              
+           
+               if i == 6:
+           
+                    id0x = 1
+                    id0y = level//4
+           
+               if i == 7:
+           
+                    id0x = 3
+                    id0y = level//4
+          
+
+               if i == 8:
+
+                    id0x = 0
+                    id0y = 1
+
+               if i == 9:
+
+                    id0x = level//4
+                    id0y = 1
+
+               if i == 10:
+
+                    id0x = 0
+                    id0y = 3
+
+               if i == 11:
+
+                    id0x = level//4
+                    id0y = 3
+
+               if i == 12:
+                    
+                    id0x = 1
+                    id0y = 1
+
+
+               if i == 13:
+
+                    id0x = 3
+                    id0y = 1
+
+               if i == 14:
+
+                    id0x = 1
+                    id0y = 3
+
+               if i == 15:
+
+                    id0x = 3
+                    id0y = 3
+
+
+               id1x = id0x + level//2
+               id1y = id0y
+
+               id2x = id0x
+               id2y = id0y + level//2
+
+               id3x = id1x
+               id3y = id2y
+
+               if i > 0:
+                p = patch[id0y::level,id0x::level].ravel()
+                P = np.append(P,p,axis=0)
+
+               p = patch[id1y::level,id1x::level].ravel()
+               P = np.append(P,p,axis=0)
+               p = patch[id2y::level,id2x::level].ravel()
+               P = np.append(P,p,axis=0)
+               p = patch[id3y::level,id3x::level].ravel()
+               P = np.append(P,p,axis=0)
+
+
+    for i in range(P.shape[0]):
+        p = P[i]*nuref
+
+        f.write(str(p)+'\n' )
+    
+    f.write(');\n\n')    
+    f.write('boundaryField\n{\n')
+
+    if self.case_name == "channelflow":
+
+     f.write('\tinlet{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\toutlet{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\ttop{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\tbottom{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
+
+    if self.case_name == "flatplate":
+
+     f.write('\tinlet{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\toutlet{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\ttop{\n\t\ttype\tsymmetryPlane;}\n\n') 
+     f.write('\tbottom{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
+
+    if self.case_name == "ellipse" or self.case_name == "airfoil" or self.case_name == "cylinder":
+
+     f.write('\ttop{\n\t\ttype\tfreestream;\n\t\tfreestreamValue\tuniform 3e-4;\n\t}\n\n') 
+     f.write('\tbottom{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
