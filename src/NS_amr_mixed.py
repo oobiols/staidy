@@ -53,7 +53,7 @@ class ScorerNetwork(keras.layers.Layer):
                                                 kernel_size = self._k,
                                                 strides = self._s,
                                                 activation= tf.nn.leaky_relu,
-                                                padding="same") )
+                                                padding="same" ))
 
 
         self._spatial_attention = keras.layers.Conv2D(filters=1,
@@ -64,11 +64,11 @@ class ScorerNetwork(keras.layers.Layer):
 
         self._pool = keras.layers.MaxPooling2D(pool_size=self._patch_size, 
                                                strides=self._patch_size, 
-                                               padding="same")
+                                               padding="same", dtype=tf.float32)
 
     
         self._flatten = keras.layers.Reshape((-1,1))
-        self._softmax = keras.layers.Softmax(axis=1)
+        self._softmax = keras.layers.Softmax(axis=1,dtype=tf.float32)
 
     def call(self,inputs):
 
@@ -86,8 +86,9 @@ class ScorerNetwork(keras.layers.Layer):
 
     def _MinMaxScaler(self,x):
  
-     max = tf.reduce_max(x)
-     min = tf.reduce_min(x)
+     x = tf.cast(x,tf.float32)
+     max = tf.cast(tf.reduce_max(x),tf.float32)
+     min = tf.cast(tf.reduce_min(x),tf.float32)
  
      x = tf.divide(x-min,max-min)
  
@@ -183,17 +184,15 @@ class NSAmrScorer(NSModelPinn):
     for _ in range(self._n_bins):
      r = self._rows_patch * level
      c = self._columns_patch * level
-     self._upsampling.append(UpSampling2DBicubic(size=(r,c)))
-     self._coord_upsampling.append(UpSampling2DBicubic(size=(r,c)))
+     self._upsampling.append(UpSampling2DBicubic(size=(r,c),dtype=tf.float32))
+     self._coord_upsampling.append(UpSampling2DBicubic(size=(r,c),dtype=tf.float32))
      level=2*level
 
     self._bins = np.linspace(0.0,1.01,self._n_bins+1).tolist()
 
-    #self._bins = [0.0,0.35,0.7,0.9,1.01]
-
   def _ranking(self,scores):
 
-        scores = tf.reshape(scores,shape=(self._batch_size*self._n_patches,1))
+        scores = tf.cast(tf.reshape(scores,shape=(self._batch_size*self._n_patches,1)),tf.float32)
         bin_per_patch = math_ops._bucketize(scores, boundaries=self._bins)
         indices = []
 
@@ -212,8 +211,11 @@ class NSAmrScorer(NSModelPinn):
    
     spatial_attention , scores = self._scorer(flowvar) #scores shape [BS,NP]
 
+
+    
     I     = self._ranking(scores) #indices shape [BS*NP]
 
+    
     features = tf.concat([flowvar,spatial_attention],axis=-1)
 
     patches     = self.from_image_to_patch_sequence(features) #patches shape [BS*NP,h,w,C]
@@ -237,7 +239,7 @@ class NSAmrScorer(NSModelPinn):
 
      for layer in self._decoder:
       p = layer(p)
-     
+    
      P.append(p)
      XZ.append(xz)
      TP.append(true_p[:,:,:,:self._channels_out])
@@ -262,12 +264,17 @@ class NSAmrScorer(NSModelPinn):
       beta_momx = float(data_loss/momx_loss)
       beta_momy = float(data_loss/momy_loss)
 
-      loss = data_loss + self.beta[0]*(beta_cont*cont_loss + beta_momx * momx_loss + beta_momy * momy_loss)
+      loss = data_loss #+ self.beta[0]*(beta_cont*cont_loss + beta_momx * momx_loss + beta_momy * momy_loss)
+    #  scaled_loss = self.optimizer.get_scaled_loss(loss)
 
-    lossGrad = tape0.gradient(loss, self.trainable_variables)
+    #scaled_gradients = tape0.gradient(scaled_loss, self.trainable_variables)
+    print("\n".join('%s'%item.dtype.name for item in self.trainable_variables))
+    
+    lossGrad = tape0.gradient(tf.cast(loss,tf.float32), self.trainable_variables)
     del tape0
 
     # ---- update parameters ---- #
+    #lossGrad = self.optimizer.get_unscaled_gradients(scaled_gradients)
     self.optimizer.apply_gradients(zip(lossGrad, self.trainable_variables))
 
     # ---- update metrics and statistics ---- #
@@ -287,40 +294,42 @@ class NSAmrScorer(NSModelPinn):
     Re_nulaminar = self.from_image_to_patch_sequence(Re_nulaminar)
     XZ = low_res_xz
 
-    with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
-      tape2.watch(XZ)
+    #with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape2:
+    #  tape2.watch(XZ)
 
-      with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
-        tape1.watch(XZ)
+    #  with tf.GradientTape(watch_accessed_variables=False,persistent=True) as tape1:
+    #    tape1.watch(XZ)
 
-        predicted_patches, true_patches, indices, XZ = self([low_res_true,XZ])
+    predicted_patches, true_patches, indices, XZ = self([low_res_true,XZ])
  
-        u_pred_patches = []
-        v_pred_patches = []
-        p_pred_patches = []
-        nu_pred_patches = []
-        for p in predicted_patches:
-          u_pred_patches.append(p[:,:,:,0])
-          v_pred_patches.append(p[:,:,:,1])
-          p_pred_patches.append(p[:,:,:,2])
-          nu_pred_patches.append(p[:,:,:,3])
-         
+#        u_pred_patches = []
+#        v_pred_patches = []
+#        p_pred_patches = []
+#        nu_pred_patches = []
+#        for p in predicted_patches:
+#          u_pred_patches.append(p[:,:,:,0])
+#          v_pred_patches.append(p[:,:,:,1])
+#          p_pred_patches.append(p[:,:,:,2])
+#          nu_pred_patches.append(p[:,:,:,3])
+#         
+#
+#      u_grad = tape1.gradient(u_pred_patches,XZ)
+#      v_grad = tape1.gradient(v_pred_patches,XZ)
+#      p_grad = tape1.gradient(p_pred_patches,XZ)
+#      nu_grad = tape1.gradient(nu_pred_patches,XZ)
+#      del tape1
+#
+#    u_grad_2 = tape2.gradient(u_grad,XZ)
+#    v_grad_2 = tape2.gradient(v_grad,XZ)
 
-      u_grad = tape1.gradient(u_pred_patches,XZ)
-      v_grad = tape1.gradient(v_pred_patches,XZ)
-      p_grad = tape1.gradient(p_pred_patches,XZ)
-      nu_grad = tape1.gradient(nu_pred_patches,XZ)
-      del tape1
-
-    u_grad_2 = tape2.gradient(u_grad,XZ)
-    v_grad_2 = tape2.gradient(v_grad,XZ)
-
-    del tape2
+#    del tape2
 
     uMse, vMse, pMse , nuMse= self.compute_data_loss(true_patches, predicted_patches)
 
-    contMse, momxMse, momzMse = self.compute_pde_loss(u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2,Re_nulaminar,indices)
-
+#    contMse, momxMse, momzMse = self.compute_pde_loss(u_pred_patches,v_pred_patches,nu_pred_patches,u_grad,v_grad,p_grad,nu_grad,u_grad_2,v_grad_2,Re_nulaminar,indices)
+    contMse = 0.0
+    momxMse = 0.0
+    momzMse = 0.0
 
     return uMse, vMse, pMse, nuMse, contMse, momxMse, momzMse
 
@@ -364,27 +373,27 @@ class NSAmrScorer(NSModelPinn):
      v = v_pred_patches[i]
      nu = nu_pred_patches[i]
 
-     grad = u_grad[i]
+     grad = tf.cast(u_grad[i],tf.float16)
      ux = grad[:,:,:,0]
      uz = grad[:,:,:,1]
 
-     grad = v_grad[i]
+     grad = tf.cast(v_grad[i],tf.float16)
      vx = grad[:,:,:,0]
      vz = grad[:,:,:,1]
 
-     grad = p_grad[i]
+     grad = tf.cast(p_grad[i],tf.float16)
      px = grad[:,:,:,0]
      pz = grad[:,:,:,1]
      
-     grad = nu_grad[i]
+     grad = tf.cast(nu_grad[i],tf.float16)
      nux = grad[:,:,:,0]
      nuz = grad[:,:,:,1]
 
-     grad = u_grad_2[i]
+     grad = tf.cast(u_grad_2[i],tf.float16)
      uxx = grad[:,:,:,0]
      uzz = grad[:,:,:,1]
 
-     grad =v_grad_2[i]
+     grad = tf.cast(v_grad_2[i],tf.float16)
      vxx = grad[:,:,:,0]
      vzz = grad[:,:,:,1]
 
@@ -397,7 +406,7 @@ class NSAmrScorer(NSModelPinn):
       
       #continuity   
       contMse += tf.reduce_mean(tf.square(ux+vz))
-     #momx
+      #momx
       momx = u * ux + v*uz + px - re*(2*nux*ux + nuz*(uz + vx) + (nul + nu)*(uxx + uzz))
       momxMse += tf.reduce_mean(tf.square(momx))
       #momy

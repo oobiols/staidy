@@ -55,19 +55,20 @@ parser.add_argument('-rs', '--restart', type=int, default=0, \
 
 
 args = parser.parse_args()
+mirrored_strategy = tf.distribute.MirroredStrategy()
 
 image_size = [args.height,args.width]
 patch_size =[args.patchheight,args.patchwidth]
-n=10000
-X = np.load('./datasets/channelflow_lr_turb_nondim.npy')[:n]
-Xfp = np.load('./datasets/flatplate_lr_turb_nondim.npy')[:n]
-Xe = np.load('./datasets/ellipse_lr_turb_nondim.npy')[:n]
+
+X = np.load('./datasets/channelflow_lr_turb_nondim.npy')
+Xfp = np.load('./datasets/flatplate_lr_turb_nondim.npy')
+Xe = np.load('./datasets/ellipse_lr_turb_nondim.npy')
 
 X = np.append(X,Xfp,axis=0)
 X = np.append(X,Xe,axis=0)
 channels = X.shape[3]
 print(X.shape)
-X, x, _, _ = train_test_split(X,X,test_size=0.05,shuffle=True)
+X, x, _, _ = train_test_split(X,X,test_size=0.1,shuffle=True)
 
 ntrain = X.shape[0]
 nval = x.shape[0]
@@ -100,48 +101,54 @@ elif (args.optimizer == "rmsprop"):
   opt = keras.optimizers.RMSprop(learning_rate=args.learningrate)
 
 
-nsNet =  NSAmrScorer(
-         image_size = [args.height,args.width,channels],
-         patch_size = [args.patchheight,args.patchwidth],
-         scorer_filters=[4,8,16],
-         filters = [4,16,64],
-         scorer_kernel_size = 5,
-         batch_size = args.batchsize,
-         nbins =args.numberbins,
-         beta =[args.lambdacont,1.0,1.0]
-         )
+train_dataset = tf.data.Dataset.from_tensor_slices((X,X))
+validation_dataset = tf.data.Dataset.from_tensor_slices((x,x))
 
-nsNet.compile(optimizer=opt,
-             run_eagerly=True)
-
-nsNet.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
-initial_epoch=0
-
-if args.restart == True:
- nsNet.load_weights(filepath)
- initial_epoch = 68
-
-nsCB = [ModelCheckpoint(filepath=filepath,
-       		monitor='val_loss',
-       		verbose=0,
-       		save_best_only=True,
-       		save_weights_only=False,
-       		mode='auto',
-       		save_freq='epoch'),
-       CSVLogger(path+'/history.csv')] 
+with mirrored_strategy.scope():
 
 
-history = nsNet.fit(x=X,
-                   y=X,
-                   batch_size=args.batchsize, 
-                   validation_data=(x,x),
-                   initial_epoch=initial_epoch, 
-                   epochs=args.epochs,\
-                   verbose=1, 
-              	    callbacks=nsCB,
-             	    shuffle=True,
-                   use_multiprocessing=True,
-                   workers=40)
+ nsNet =  NSAmrScorer(
+          image_size = [args.height,args.width,channels],
+          patch_size = [args.patchheight,args.patchwidth],
+          scorer_filters=[4,16,32],
+          filters = [4,16,64],
+          scorer_kernel_size = 5,
+          batch_size = args.batchsize//mirrored_strategy.num_replicas_in_sync,
+          nbins =args.numberbins,
+          beta =[args.lambdacont,1.0,1.0]
+          )
+
+ nsNet.compile(optimizer=opt,
+	      run_eagerly=True)
+
+ nsNet.build(input_shape=[(None,args.height,args.width,4),(None,args.height,args.width,2)])
+ initial_epoch=0
+
+ if args.restart == True:
+  nsNet.load_weights(filepath)
+  initial_epoch = 68
+
+ nsCB = [ModelCheckpoint(filepath=filepath,
+			monitor='val_loss',
+			verbose=0,
+			save_best_only=True,
+			save_weights_only=False,
+			mode='auto',
+			save_freq='epoch'),
+	CSVLogger(path+'/history.csv')] 
+
+
+ history = nsNet.fit(x=X,
+                    y=X,
+                    batch_size=args.batchsize, 
+                    validation_data=(x,x),
+                    initial_epoch=initial_epoch, 
+                    epochs=args.epochs,\
+                    verbose=1, 
+               	    callbacks=nsCB,
+              	    shuffle=True,
+                    use_multiprocessing=True,
+                    workers=40)
 
 
 plot.history(history,name=name)
