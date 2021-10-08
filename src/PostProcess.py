@@ -42,7 +42,6 @@ class PostProcessAmr():
 
   def levels_to_png(self):
 
-
     fig, axs = plt.subplots(self.npx, self.npy , gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(6,2))
     fig.suptitle("NN_levels", fontsize=10)
 
@@ -62,17 +61,56 @@ class PostProcessAmr():
          patch = patches[idx,:,:,:]
 
        data = patch[:,:,0]
-       J = np.abs(J-3)
+       if J==0:
+         J = 3
+       elif J==1:
+         J = 2.5
+       elif J==2:
+         J = 2
+       elif J==3:
+         J = 1.5
+
        data.fill(J)
        axs[x,y].set_xticks([])
        axs[x,y].set_yticks([])    
        axs[x,y].patch.set_edgecolor('black')  
        axs[x,y].patch.set_linewidth('1')
+   
        hm = sn.heatmap(data, vmin = 0, vmax=3, ax=axs[x,y],cbar=False, xticklabels=False,yticklabels=False)
  
 
     directory_name = './amr_levels/'+self.modelname
-    file_name = 'levels'
+    file_name = 'levels_'+self.case_name+'_'+str(self.patchheight)+'_'+str(self.patchwidth)
+
+    if not os.path.exists(directory_name):
+      os.makedirs(directory_name)
+
+    plt.savefig(directory_name+'/'+file_name,dpi=600)
+    plt.close()
+
+  def levels_of_to_png(self,idx,maxlevel=2):
+
+    fig, axs = plt.subplots(self.npx, self.npy , gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(6,2))
+    fig.suptitle("NN_levels", fontsize=10)
+
+    for x in range(self.npx):
+      z = x * self.npy
+      for y in range(self.npy):
+     
+       i = y + z
+       if i in idx:
+        data = np.full((self.patchheight,self.patchwidth),fill_value=1.5)
+       else:
+        data = np.full((self.patchheight,self.patchwidth),fill_value=3)
+
+       axs[x,y].set_xticks([])
+       axs[x,y].set_yticks([])    
+       axs[x,y].patch.set_edgecolor('black')  
+       axs[x,y].patch.set_linewidth('1')
+       hm = sn.heatmap(data, vmin = 0, vmax=3, ax=axs[x,y],cbar=False, xticklabels=False,yticklabels=False)
+
+    directory_name = './amr_levels/'+self.modelname
+    file_name = 'levels_of_'+self.case_name+'_'+str(self.patchheight)+'_'+str(self.patchwidth)
 
     if not os.path.exists(directory_name):
       os.makedirs(directory_name)
@@ -385,11 +423,11 @@ class PostProcessAmr():
                id1x = id0x + level//2
                id1y = id0y
 
-               idx2x = id0x
-               idx2y = id0y + level//2
+               id2x = id0x
+               id2y = id0y + level//2
 
-               idx3x = id1x
-               idx3y = id2y
+               id3x = id1x
+               id3y = id2y
 
                if i > 0:
                 ux = patch[id0y::level,id0x::level,0].ravel()
@@ -431,24 +469,24 @@ class PostProcessAmr():
      f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
      f.write('\ttop{\n\t\ttype\tnoSlip;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tnoSlip;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
 
     if self.case_name == "flatplate":
 
      f.write('\tinlet{\n\t\ttype\tfixedValue;\n\t\tvalue\tuniform ('+str(uref)+' 0 0);\n\t}\n\n') 
      f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
-     f.write('\ttop{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
+     f.write('\ttop{\n\t\ttype\tempty;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tnoSlip;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
 
     if self.case_name == "ellipse" or self.case_name == "airfoil" or self.case_name == "cylinder":
 
      f.write('\ttop{\n\t\ttype\tfreestream;\n\t\tfreestreamValue\tuniform ('+str(uref)+' 0 0);\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tnoSlip;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
 
   def pressure_to_foam(self,uref=3.5):
 
@@ -643,21 +681,21 @@ class PostProcessAmr():
                id1x = id0x + level//2
                id1y = id0y
 
-               idx2x = id0x
-               idx2y = id0y + level//2
+               id2x = id0x
+               id2y = id0y + level//2
 
-               idx3x = id1x
-               idx3y = id2y
+               id3x = id1x
+               id3y = id2y
 
                if i > 0:
-                p = patch[id0y::level,id0x::level,0].ravel()
+                p = patch[id0y::level,id0x::level].ravel()
                 P = np.append(P,p,axis=0)
 
-               p = patch[id1y::level,id1x::level,0].ravel()
+               p = patch[id1y::level,id1x::level].ravel()
                P = np.append(P,p,axis=0)
-               p = patch[id2y::level,id2x::level,0].ravel()
+               p = patch[id2y::level,id2x::level].ravel()
                P = np.append(P,p,axis=0)
-               p = patch[id3y::level,id3x::level,0].ravel()
+               p = patch[id3y::level,id3x::level].ravel()
                P = np.append(P,p,axis=0)
 
     for i in range(P.shape[0]):
@@ -675,8 +713,8 @@ class PostProcessAmr():
      f.write('\toutlet{\n\t\ttype\tfixedValue;\n\t\tvalue\tuniform 0;\n\t}\n\n') 
      f.write('\ttop{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
 
     elif self.case_name == "flatplate":
 
@@ -684,15 +722,15 @@ class PostProcessAmr():
      f.write('\toutlet{\n\t\ttype\tfixedValue;\n\t\tvalue\tuniform 0;\n\t}\n\n') 
      f.write('\ttop{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
 
     if self.case_name == "ellipse" or self.case_name == "airfoil" or self.case_name == "cylinder":
 
      f.write('\ttop{\n\t\ttype\tfreestream;\n\t\tfreestreamValue\tuniform 0;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tnoSlip;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
 
   def nutilda_to_foam(self,nuref=3.5):
 
@@ -886,21 +924,21 @@ class PostProcessAmr():
                id1x = id0x + level//2
                id1y = id0y
 
-               idx2x = id0x
-               idx2y = id0y + level//2
+               id2x = id0x
+               id2y = id0y + level//2
 
-               idx3x = id1x
-               idx3y = id2y
+               id3x = id1x
+               id3y = id2y
 
                if i > 0:
-                p = patch[id0y::level,id0x::level,0].ravel()
+                p = patch[id0y::level,id0x::level].ravel()
                 P = np.append(P,p,axis=0)
 
-               p = patch[id1y::level,id1x::level,0].ravel()
+               p = patch[id1y::level,id1x::level].ravel()
                P = np.append(P,p,axis=0)
-               p = patch[id2y::level,id2x::level,0].ravel()
+               p = patch[id2y::level,id2x::level].ravel()
                P = np.append(P,p,axis=0)
-               p = patch[id3y::level,id3x::level,0].ravel()
+               p = patch[id3y::level,id3x::level].ravel()
                P = np.append(P,p,axis=0)
 
 
@@ -918,21 +956,21 @@ class PostProcessAmr():
      f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
      f.write('\ttop{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 0;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 0;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
 
     if self.case_name == "flatplate":
 
      f.write('\tinlet{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 3e-4;\n\t}\n\n') 
      f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
-     f.write('\ttop{\n\t\ttype\tsymmetryPlane;}\n\n') 
+     f.write('\ttop{\n\t\ttype\tempty;}\n\n') 
      f.write('\tbottom{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 0;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
 
     if self.case_name == "ellipse" or self.case_name == "airfoil" or self.case_name == "cylinder":
 
      f.write('\ttop{\n\t\ttype\tfreestream;\n\t\tfreestreamValue\tuniform 3e-4;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 0;\n\t}\n\n') 
-     f.write('\tfront{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
-     f.write('\tback{\n\t\ttype\tsymmetryPlane;\n\t}\n\n}') 
+     f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
