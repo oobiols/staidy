@@ -31,7 +31,7 @@ SURFNet overcomes this burden. The idea is to accelerate fine-grid simulations w
 
 ## Citing this work
 If you believe this repository can help the development of your research:
-
+CFDNet:
 ```
 @inproceedings{obiols2020cfdnet,
   title={CFDNet: A deep learning-based accelerator for fluid simulations}, 
@@ -39,6 +39,15 @@ If you believe this repository can help the development of your research:
   booktitle={Proceedings of the 34th ACM International Conference on Supercomputing},
   pages={1--12},
   year={2020}
+}
+```
+SURFNet:
+```
+@article{obiols2021surfnet,
+  title={SURFNet: Super-resolution of Turbulent Flows with Transfer Learning using Small Datasets},
+  author={Obiols-Sales, Octavi and Vishnu, Abhinav and Malaya, Nicholas and Chandramowlishwaran, Aparna},
+  journal={arXiv preprint arXiv:2108.07667},
+  year={2021}
 }
 ```
 
