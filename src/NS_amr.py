@@ -190,6 +190,7 @@ class NSAmrScorer(NSModelPinn):
   def _ranking(self,scores):
 
         scores = tf.reshape(scores,shape=(self._batch_size*self._n_patches,1))
+        #bins = [0,0.2,0.3,0.5,1.01]
         bins = np.linspace(0,1.01,self._n_bins+1).tolist()
         bin_per_patch = math_ops._bucketize(scores, boundaries=bins)
         indices = []
@@ -211,10 +212,10 @@ class NSAmrScorer(NSModelPinn):
 
     I     = self._ranking(scores) #indices shape [BS*NP]
 
-    features = tf.concat([flowvar,spatial_attention],axis=-1)
+    features = tf.concat([flowvar,spatial_attention,coordinates],axis=-1)
 
     patches     = self.from_image_to_patch_sequence(features) #patches shape [BS*NP,h,w,C]
-    coordinates = self.from_image_to_patch_sequence(coordinates) #patches shape [BS*NP,h,w,C]
+    #coordinates = self.from_image_to_patch_sequence(coordinates) #patches shape [BS*NP,h,w,C]
 
     P = []
     XZ = []
@@ -222,10 +223,10 @@ class NSAmrScorer(NSModelPinn):
     for i , idx in enumerate(I):
      true_p = tf.squeeze(tf.gather(patches,idx,axis=0),axis=1)
      p = self._upsampling[i](true_p)
-     xz = tf.squeeze(tf.gather(coordinates,idx,axis=0),axis=1)
-     xz = self._coord_upsampling[i](xz)
+    # xz = tf.squeeze(tf.gather(coordinates,idx,axis=0),axis=1)
+    # xz = self._coord_upsampling[i](xz)
 
-     p = tf.concat([p,xz],axis=-1)
+     #p = tf.concat([p,xz],axis=-1)
 
      #p = self._enc_dec[0](p)
 
@@ -235,8 +236,8 @@ class NSAmrScorer(NSModelPinn):
      for layer in self._decoder:
       p = layer(p)
      
-     P.append(p)
-     XZ.append(xz)
+     P.append(p[:,:,:,0:4])
+     XZ.append(true_p[:,:,:,-2:])
      TP.append(true_p[:,:,:,:self._channels_out])
 
     return P, TP, I, XZ 

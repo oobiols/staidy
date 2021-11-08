@@ -71,12 +71,13 @@ class PostProcessAmr():
          J = 1.5
 
        data.fill(J)
-       axs[x,y].set_xticks([])
-       axs[x,y].set_yticks([])    
-       axs[x,y].patch.set_edgecolor('black')  
-       axs[x,y].patch.set_linewidth('1')
+       xpos = (self.npx-1)-x
+       axs[xpos,y].set_xticks([])
+       axs[xpos,y].set_yticks([])    
+       axs[xpos,y].patch.set_edgecolor('black')  
+       axs[xpos,y].patch.set_linewidth('1')
    
-       hm = sn.heatmap(data, vmin = 0, vmax=3, ax=axs[x,y],cbar=False, xticklabels=False,yticklabels=False)
+       hm = sn.heatmap(data, vmin = 0, vmax=3, ax=axs[xpos,y],cbar=False, xticklabels=False,yticklabels=False)
  
 
     directory_name = './amr_levels/'+self.modelname
@@ -434,7 +435,7 @@ class PostProcessAmr():
                 Ux = np.append(Ux,ux,axis=0)
 
                 uz = patch[id0y::level,id0x::level,1].ravel()
-                uz = np.append(uz,uz,axis=0)
+                Uz = np.append(Uz,uz,axis=0)
 
                ux = patch[id1y::level,id1x::level,0].ravel()
                Ux = np.append(Ux,ux,axis=0)
@@ -450,12 +451,14 @@ class PostProcessAmr():
                uz = patch[id3y::level,id3x::level,1].ravel()
                Uz = np.append(Uz,uz,axis=0)
 
-
+    print(Ux.shape)
+    print(Uz.shape)
     for i in range(Ux.shape[0]):
         ux = Ux[i]*uref
         uy = 0
         uz = 0
-#        uz = Uz[i]*uref
+        uz = Uz[i]*uref
+
 
         f.write('('+str(ux)+' 0 '+str(uz)+')\n' )
     
@@ -476,7 +479,7 @@ class PostProcessAmr():
 
      f.write('\tinlet{\n\t\ttype\tfixedValue;\n\t\tvalue\tuniform ('+str(uref)+' 0 0);\n\t}\n\n') 
      f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
-     f.write('\ttop{\n\t\ttype\tempty;\n\t}\n\n') 
+     f.write('\ttop{\n\t\ttype\tsymmetryPlane;\n\t}\n\n') 
      f.write('\tbottom{\n\t\ttype\tnoSlip;\n\t}\n\n') 
      f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
      f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
@@ -963,7 +966,7 @@ class PostProcessAmr():
 
      f.write('\tinlet{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 3e-4;\n\t}\n\n') 
      f.write('\toutlet{\n\t\ttype\tzeroGradient;\n\t}\n\n') 
-     f.write('\ttop{\n\t\ttype\tempty;}\n\n') 
+     f.write('\ttop{\n\t\ttype\tsymmetryPlane;}\n\n') 
      f.write('\tbottom{\n\t\ttype\tfixedValue;\n\tvalue\tuniform 0;\n\t}\n\n') 
      f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
      f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
@@ -977,7 +980,7 @@ class PostProcessAmr():
 
   def levels_to_foam(self):
 
-    directory_name = './amr_to_foam/'+self.modelname
+    directory_name = './amr_to_foam/'+self.modelname+'/'+self.case_name
     file_name = "cellLevels"
 
     if not os.path.exists(directory_name):
@@ -1188,7 +1191,7 @@ class PostProcessAmr():
 
 
     for i in range(P.shape[0]):
-        p = P[i]*nuref
+        p = P[i]
 
         f.write(str(p)+'\n' )
     
