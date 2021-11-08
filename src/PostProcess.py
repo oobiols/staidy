@@ -1222,3 +1222,35 @@ class PostProcessAmr():
      f.write('\tbottom{\n\t\ttype\tcalculated;\n\tvalue\tuniform 0;\n\t}\n\n') 
      f.write('\tfront{\n\t\ttype\tempty;\n\t}\n\n') 
      f.write('\tback{\n\t\ttype\tempty;\n\t}\n\n}') 
+
+
+  def refinement_history(self):
+
+
+    directory_name = './amr_to_foam/'+self.modelname+'/'+self.case_name
+    file_name = "refinementHistory"
+
+    if not os.path.exists(directory_name):
+      os.makedirs(directory_name)
+
+    f = open(directory_name+'/'+file_name,'w')
+    f.write('FoamFile\n{\n\tversion\t2.0;\n\tformat\tascii;\n\tclass\trefinementHistory;\n\tobject\trefinementHistory;\n\tlocation\t"1/polyMesh";\n}\n\n') 
+
+
+    number_split_cells = 0
+    for i in range(self.npatches):
+     for j , indices in enumerate(self.indices[1:]):
+
+      if i in indices:
+         number_split_cells += self.patchheight*self.patchwidth 
+         #idx = np.where(indices==i)
+         #idx = idx[0][0]
+         patches = self.patches[j+1]
+         #patch = patches[idx,:,:,3]
+         h = patches.shape[0]
+         w = patches.shape[1]
+         number_split_cells += h*w*2
+
+
+    print(number_split_cells)
+

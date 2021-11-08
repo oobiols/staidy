@@ -91,21 +91,19 @@ pp_amr = PostProcessAmr(patches=p,
 			width=args.width,
 			case_name=args.case,
 			modelname=args.modelname)
-#print("\n\nFinding levels to png...\n\n")
-#pp_amr.levels_to_png()
-print("Done!\n\n")
-#pp_amr.levels_to_foam()
+
+pp_amr.refinement_history()
 
 
-xx = np.load('./datasets/'+args.case+'_lr_turb.npy')[n:n+1]
-if args.case == "channelflow" or args.case=="flatplate": 
- uref  = xx[0,args.height//2,0,0]
-elif args.case == "airfoil" or args.case == "ellipse":
- uref  = xx[0,args.height-1,args.width//2,0]
- 
-nuref=np.max(xx[:,:,:,3])
-print(uref)
-pp_amr.velocity_to_foam(uref=uref)
-pp_amr.pressure_to_foam(uref=uref)
-pp_amr.nutilda_to_foam(nuref=nuref)
+#xx = np.load('./datasets/'+args.case+'_lr_turb.npy')[n:n+1]
+#if args.case == "channelflow" or args.case=="flatplate": 
+# uref  = xx[0,args.height//2,0,0]
+#elif args.case == "airfoil" or args.case == "ellipse":
+# uref  = xx[0,args.height-1,args.width//2,0]
+# 
+#nuref=np.max(xx[:,:,:,3])
+#print(uref)
+#pp_amr.velocity_to_foam(uref=uref)
+#pp_amr.pressure_to_foam(uref=uref)
+#pp_amr.nutilda_to_foam(nuref=nuref)
 
